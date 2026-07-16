@@ -69,9 +69,10 @@ def get_page(story_id: int, local_id: int):
     if not row:
         return None
     page_data = dict(row)
+    # 仅解析json，不洗牌，保留原始选项顺序
     page_data['options'] = json.loads(page_data['options'])
-    random.shuffle(page_data['options'])
     return page_data
+
 
 def get_story_start_local_id(story_id: int):
     cur = get_db().cursor()
@@ -99,15 +100,20 @@ def story_list():
 # 进入故事，清空选项缓存
 @app.route('/play/story/<int:story_id>')
 def enter_story(story_id):
+    # 清空全部游玩相关session，彻底隔离上一个故事状态
+    session.pop('current_story_id', None)
+    session.pop('allow_ending_map', None)
     remove_keys = [k for k in session.keys() if k.startswith("opt_cache_")]
     for k in remove_keys:
         session.pop(k)
+
     session['current_story_id'] = story_id
     start_local_id = get_story_start_local_id(story_id)
     if not start_local_id:
         flash("该故事暂无开篇剧情")
         return redirect(url_for("story_list"))
     return redirect(url_for("play_page", story_id=story_id, local_id=start_local_id))
+
 
 # 游玩页面
 @app.route('/play/<int:story_id>/<int:local_id>')
@@ -119,15 +125,28 @@ def play_page(story_id, local_id):
     if not page:
         flash("剧情页面不存在，返回故事选择")
         return redirect(url_for("story_list"))
+
     if page['page_type'] == "ending":
         allow_info = session.get("allow_ending_map")
+        # 严格校验：放行标记的故事必须等于当前故事
         if not allow_info or allow_info.get("story_id") != story_id or allow_info.get("enable") != 1:
             flash("不能直接查看结局，请正常推理走完剧情！")
             return redirect(url_for("story_list"))
         session.pop("allow_ending_map", None)
+
+        # ========== 新增：终端打印结局信息 ==========
+        end_type = "✅ 真结局" if page["is_true_ending"] == 1 else "❌ 错误结局"
+        print(f"\n【抵达结局】故事ID:{story_id} | 页面ID:{local_id} | {end_type}")
+        print(f"结局内容预览：{page['content'][:80]}...\n")
+
         return render_template("ending.html", page=page)
+
+    # 仅渲染页面时执行一次洗牌，choose查询不会改动选项
+    random.shuffle(page['options'])
     session.pop("allow_ending_map", None)
     return render_template("page.html", page=page, story_id=story_id)
+
+
 
 # 选择跳转
 @app.route('/choose', methods=["POST"])
@@ -138,13 +157,19 @@ def choose():
         return redirect(url_for("story_list"))
     story_id = int(story_id_raw)
     jump_local_id = int(jump_local_raw)
+    # 获取原始页面数据（选项未打乱），仅判断页面类型
     target_page = get_page(story_id, jump_local_id)
+
+    # ========== 新增：终端打印玩家选择 ==========
+    print(f"\n【玩家操作】故事ID:{story_id} | 选择跳转至页面 local_page_id = {jump_local_id}")
+
     if target_page and target_page["page_type"] == "ending":
         session["allow_ending_map"] = {
             "story_id": story_id,
             "enable": 1
         }
     return redirect(url_for("play_page", story_id=story_id, local_id=jump_local_id))
+
 
 
 # 重置数据库后台（密码校验）
