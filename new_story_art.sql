@@ -1,6 +1,8 @@
 -- 新增第三个推理故事：校园画室失踪案
 -- 仅追加数据，不会删除现有别墅毒杀案、美术馆失窃案
 
+BEGIN TRANSACTION;
+
 INSERT INTO story(story_name, story_desc)
 VALUES ('校园画室失踪案', '美术社团深夜画室，一幅参赛原画凭空消失，锁定四名社团成员，找出偷画之人');
 
@@ -57,3 +59,6 @@ INSERT INTO story_page(story_id, local_page_id, page_type, content, options, is_
 '仅凭主观认定竞争者偷窃，缺少任何实物证据，老师无法定罪，原画下落不明。',
 '[]',
 0);
+
+-- 无报错才会保存入库
+COMMIT;

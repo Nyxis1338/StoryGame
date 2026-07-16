@@ -215,19 +215,28 @@ def sql_upload():
         filename = secure_filename(cast(str, filename_raw))
         save_path = os.path.join(app.config["UPLOAD_FOLDER"], filename)
         file.save(save_path)
+        db = get_db()
+        cursor = db.cursor()
         try:
-            db = get_db()
+            # 开启数据库事务
+            cursor.execute("BEGIN TRANSACTION;")
             with open(save_path, "r", encoding="utf-8") as f:
                 sql_text = f.read()
-            db.executescript(sql_text)
-            db.commit()
+            # 执行完整脚本
+            cursor.executescript(sql_text)
+            # 无异常则提交
+            cursor.execute("COMMIT;")
             os.remove(save_path)
             flash("SQL文件导入成功，新故事已加载！")
         except Exception as e:
-            flash(f"SQL执行失败：{str(e)}")
+            # 任意错误，立刻全部回滚，撤销所有插入
+            cursor.execute("ROLLBACK;")
+            os.remove(save_path)
+            flash(f"SQL脚本执行失败，所有操作已全部回退！错误详情：{str(e)}")
         return redirect(url_for("story_list"))
     flash("仅支持 .sql 格式文件上传")
     return redirect(url_for("sql_upload"))
+
 
 # 新增：修改管理员密码页面
 @app.route('/admin/password_edit', methods=["GET", "POST"])
