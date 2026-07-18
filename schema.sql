@@ -28,6 +28,8 @@ CREATE TABLE story_page (
     content TEXT NOT NULL,
     options TEXT NOT NULL,
     is_true_ending INTEGER DEFAULT 0 CHECK(is_true_ending IN (0,1)),
+    pos_x INTEGER DEFAULT 50,  -- 新增：思维导图X坐标
+    pos_y INTEGER DEFAULT 50,  -- 新增：思维导图Y坐标
     UNIQUE(story_id, local_page_id),
     FOREIGN KEY (story_id) REFERENCES story(story_id)
 );
@@ -126,3 +128,23 @@ INSERT INTO story_page(story_id, local_page_id, page_type, content, options, is_
 '在修复师工作室夹层找到完整失窃油画，颜料碎屑、专用工具、溶剂记录形成完整证据链。修复师因债务铤而走险，推理成功！',
 '[]',
 1);
+
+
+-- 草稿故事表
+CREATE TABLE IF NOT EXISTS story_draft (
+    draft_id INTEGER PRIMARY KEY AUTOINCREMENT,
+    story_id INTEGER,  -- 关联正式表
+    draft_data TEXT NOT NULL,  -- JSON格式存储草稿
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (story_id) REFERENCES story(story_id) ON DELETE CASCADE
+);
+
+-- 草稿剧情页表
+CREATE TABLE IF NOT EXISTS story_page_draft (
+    draft_id INTEGER PRIMARY KEY AUTOINCREMENT,
+    story_id INTEGER,
+    local_page_id INTEGER,
+    draft_data TEXT NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (story_id) REFERENCES story(story_id) ON DELETE CASCADE
+);

@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% block title %}管理首页{% endblock %}
+{% block content %}
+<div class="card">
+    <h2>📚 故事列表</h2>
+    <p>选择故事进行编辑，支持「表单编辑」和「思维导图编辑」两种模式</p>
+
+    <table class="admin-table">
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>故事名称</th>
+                <th>简介</th>
+                <th>操作</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for s in stories %}
+            <tr>
+                <td>{{ s[0] }}</td>
+                <td>
+                    <div class="story-title-cell">{{ s[1] }}</div>
+                </td>
+                <td>
+                    <div class="story-desc-cell">{{ s[2] }}</div>
+                </td>
+                <td>
+                    <div class="btn-group">
+                        <a href="/admin/story/{{ s[0] }}/edit" class="btn-gray">
+                            📝 表单操作
+                        </a>
+                        <a href="/admin/story/{{ s[0] }}/mindmap" class="btn-blue">
+                            🧠 思维导图
+                        </a>
+                    </div>
+                    <div style="margin-top:0.5rem; font-size:0.8rem; color:#999;">
+                        切换编辑模式无需保存，数据实时同步
+                    </div>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}

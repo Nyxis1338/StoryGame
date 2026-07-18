@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+{% block title %}上传SQL{% endblock %}
+{% block content %}
+<div class="card">
+    <h2>📤 上传剧本SQL</h2>
+    <div class="upload-notice">
+        <h3>⚠️ 上传前必读</h3>
+        <pre style="background:#1a1612; padding:1rem; border-radius:4px; overflow-x:auto; margin:1rem 0;">
+-- story表：存储故事基本信息
+CREATE TABLE IF NOT EXISTS story (
+    story_id INTEGER PRIMARY KEY AUTOINCREMENT,
+    story_name TEXT NOT NULL,          -- 故事名称（必填）
+    story_desc TEXT                    -- 故事简介（可选）
+);
+
+-- story_page表：存储剧情页内容
+CREATE TABLE IF NOT EXISTS story_page (
+    story_id INTEGER NOT NULL,
+    local_page_id INTEGER NOT NULL,     -- 故事内页ID（必填，同一故事内唯一）
+    content TEXT NOT NULL,              -- 页面正文（必填）
+    options TEXT,                       -- 分支选项（JSON格式，例：[{"text":"选项1","jump_local_id":2}]）
+    page_type TEXT CHECK(page_type IN ('start','process','ending')) NOT NULL, -- 页面类型
+    is_true_ending BOOLEAN DEFAULT 0,  -- 是否真结局（1=真结局，0=假结局）
+    pos_x INTEGER DEFAULT 50,           -- 思维导图X坐标（可选）
+    pos_y INTEGER DEFAULT 50,           -- 思维导图Y坐标（可选）
+    PRIMARY KEY (story_id, local_page_id),
+    FOREIGN KEY (story_id) REFERENCES story(story_id) ON DELETE CASCADE
+);</pre>
+        <ul style="color: var(--text-muted); margin: 1rem 0; line-height: 1.8;">
+            <li>导入会覆盖同ID的故事数据，请提前备份重要内容</li>
+            <li>SQL文件编码必须为UTF-8，否则会出现乱码</li>
+            <li>支持批量导入多个故事，请确保`story_id`不重复</li>
+        </ul>
+    </div>
+
+    {% if error %}
+    <div class="error" style="color: var(--accent-red); margin:1rem 0; padding:0.8rem; background:rgba(168,60,44,0.1); border-radius:4px;">{{ error }}</div>
+    {% endif %}
+    {% if success %}
+    <div class="success" style="color: #2ecc71; margin:1rem 0; padding:0.8rem; background:rgba(46,204,113,0.1); border-radius:4px;">{{ success }}</div>
+    {% endif %}
+
+    <form method="POST" enctype="multipart/form-data">
+        <label>管理员密码：</label>
+        <input type="password" name="password" required style="width:100%; padding:0.8rem; margin:0.5rem 0; background:#1a1612; border:1px solid #3e3429; border-radius:4px; color:var(--text-main);">
+
+        <div class="file-upload-wrapper" style="margin:1.5rem 0;">
+            <label for="sqlFile" class="btn-blue" style="cursor:pointer;">📤 选择SQL文件</label>
+            <input type="file" id="sqlFile" name="sql_file" accept=".sql" required style="display:none;">
+            <span id="fileName" style="margin-left:1rem; color:var(--text-muted);">未选择文件</span>
+        </div>
+
+        <button type="submit" class="btn-blue" style="width:100%; padding:0.8rem; margin-top:1rem;">🚀 上传并执行</button>
+    </form>
+</div>
+
+<script>
+// 显示选中的文件名
+document.getElementById('sqlFile').addEventListener('change', function(e) {
+    const fileName = e.target.files[0] ? e.target.files[0].name : '未选择文件';
+    document.getElementById('fileName').textContent = fileName;
+});
+</script>
+{% endblock %}

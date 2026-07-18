@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block title %}侦探手记{% endblock %}
+
+{% block content %}
+<!-- 欢迎屏内容（现在归首页自己管，不会被其他页面覆盖） -->
+<div class="welcome-screen" id="welcomeScreen">
+    <div class="welcome-content">
+        <h2>📜 欢迎来到侦探手记</h2>
+        <p>选择左侧故事，开启一段悬疑之旅</p>
+        <div class="welcome-decoration">
+            <span>🔍</span>
+            <span>📝</span>
+            <span>🗝️</span>
+        </div>
+    </div>
+</div>
+
+<!-- 阅读区容器（和剧情页共用结构，方便JS统一操作） -->
+<div class="reading-content" id="readingContent" style="display: none;">
+    <article class="story-text" id="storyContent"></article>
+    <hr class="story-divider">
+    <div class="option-group" id="storyOptions"></div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<!-- 公共故事逻辑（处理无刷新翻页，全局生效） -->
+<script src="{{ url_for('static', filename='js/story.js') }}"></script>
+<!-- 首页专属交互逻辑（只处理搜索、开始阅读点击） -->
+<script src="{{ url_for('static', filename='js/index.js') }}"></script>
+{% endblock %}

@@ -1,0 +1,221 @@
+{% extends "base.html" %}
+{% block title %}思维导图编辑 - {{ story_name }}{% endblock %}
+{% block extra_head %}
+
+
+<style>
+#mindmap-canvas {
+    width: 100%;
+    height: 70vh;
+    background: #f0f2f5;
+    background-image: radial-gradient(circle, #d1d1d1 1px, transparent 1px);
+    background-size: 20px 20px;
+    position: relative;
+    overflow: auto;
+    border-radius: 8px;
+}
+.node {
+    position: absolute;
+    width: 220px;
+    padding: 1rem;
+    background: white;
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    cursor: grab;
+    border-left: 4px solid #8b7355;
+}
+.node.start { border-left-color: #2ecc71; }
+.node.ending { border-left-color: #e74c3c; }
+.node-header { font-weight: bold; margin-bottom: 0.5rem; }
+.node-body { color: #666; font-size: 0.9rem; height: 40px; overflow: hidden; }
+.node-footer { font-size: 0.8rem; color: #999; margin-top: 0.5rem; }
+#toolbar { margin-bottom: 1rem; display: flex; gap: 1rem; }
+.connection-label { background: white; padding: 2px 6px; border-radius: 4px; font-size: 0.8rem; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="card">
+    <h2>🧠 思维导图编辑：{{ story_name }}</h2>
+    <p>拖拽节点移动位置，从右侧蓝点拖到左侧灰点创建分支，点击节点编辑内容</p>
+    
+    <div id="toolbar">
+        <button class="btn-blue" onclick="addNode()">➕ 新增页面</button>
+        <button class="btn-blue" onclick="saveAll()">💾 保存草稿</button>
+        <button class="btn-gray" onclick="publishAll()">🚀 确认发布</button>
+        <a href="/admin/story/{{ story_id }}/edit" class="btn-gray">📝 切换到表单编辑</a>
+    </div>
+    
+    <div id="mindmap-canvas"></div>
+</div>
+
+<!-- 节点编辑弹窗 -->
+<div id="node-editor" style="display:none; position:fixed; top:50%; left:50%; transform:translate(-50%,-50%); background:white; padding:2rem; border-radius:8px; box-shadow:0 10px 30px rgba(0,0,0,0.2); z-index:1000; width:500px;">
+    <h3>编辑节点</h3>
+    <form id="editor-form">
+        <input type="hidden" id="edit-page-id">
+        <label>内容：</label>
+        <textarea id="edit-content" rows="8" style="width:100%;"></textarea>
+        <label>页面类型：</label>
+        <select id="edit-page-type" style="width:100%;">
+            <option value="start">起始页</option>
+            <option value="process">过程页</option>
+            <option value="ending">结局页</option>
+        </select>
+        <label><input type="checkbox" id="edit-true-ending"> 真结局</label>
+        <div id="options-editor" style="margin-top:1rem;">
+            <h4>分支选项：</h4>
+            <div id="options-list"></div>
+            <button type="button" onclick="addOption()" class="btn btn-secondary" style="margin-top:0.5rem;">➕ 添加选项</button>
+        </div>
+        <div style="margin-top:1.5rem; display:flex; gap:1rem;">
+            <button type="submit" class="btn btn-primary">保存</button>
+            <button type="button" onclick="closeEditor()" class="btn btn-secondary">取消</button>
+        </div>
+    </form>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<!-- 1. 先加载jsPlumb，确保在所有代码前执行 -->
+<script src="{{ url_for('static', filename='js/jsplumb.min.js') }}"></script>
+
+<script>
+// ✅ 全局变量提前声明，避免初始化顺序问题
+var graphData = { nodes: [], edges: [] };
+var jsPlumbInstance = null;  // 显式声明实例变量
+const storyId = JSON.parse('{{ story_id | tojson }}');
+
+// 初始化jsPlumb（等DOM加载完成）
+document.addEventListener('DOMContentLoaded', function() {
+    // 初始化实例，2.x版本的正确用法
+    jsPlumbInstance = jsPlumb.getInstance({
+        container: "mindmap-canvas",
+        connector: ["Bezier", { curviness: 50 }],
+        endpoint: ["Dot", { radius: 7 }],
+        paintStyle: { stroke: "#7f8c8d", strokeWidth: 2 },
+        hoverPaintStyle: { stroke: "#3498db", strokeWidth: 3 },
+        connectionOverlays: [["Arrow", { location: 1, width: 10, length: 10 }]]
+    });
+
+    // 加载思维导图数据
+    loadGraph();
+});
+
+// 加载数据
+async function loadGraph() {
+    const res = await fetch(`/admin/api/story/${storyId}/graph`);
+    graphData = await res.json();
+    
+    // 清空画布
+    document.getElementById('mindmap-canvas').innerHTML = '';
+    
+    // 创建节点
+    graphData.nodes.forEach(node => createNode(node));
+    
+    // 延迟绘制连线，确保节点已渲染
+    setTimeout(() => {
+        graphData.edges.forEach(edge => {
+            jsPlumbInstance.connect({
+                source: edge.source,
+                target: edge.target,
+                overlays: [["Label", { label: edge.label, location: 0.5, cssClass: "connection-label" }]]
+            });
+        });
+        jsPlumbInstance.repaintEverything();
+    }, 300);
+}
+
+// 创建节点DOM
+function createNode(node) {
+    const canvas = document.getElementById('mindmap-canvas');
+    const el = document.createElement("div");
+    el.id = node.id;
+    el.className = `node ${node.type}`;
+    el.style.left = `${node.left}px`;
+    el.style.top = `${node.top}px`;
+    el.innerHTML = `
+        <div class="node-header">第 ${node.page_id} 页</div>
+        <div class="node-body">${node.content}</div>
+        <div class="node-footer">${node.type}</div>
+    `;
+    canvas.appendChild(el);
+
+    // 拖拽保存位置
+    jsPlumbInstance.draggable(el, {
+        stop: async (params) => {
+            await fetch("/admin/api/node/move", {
+                method: "POST",
+                headers: {"Content-Type": "application/json"},
+                body: JSON.stringify({
+                    story_id: storyId,
+                    page_id: params.el.id.split("_")[1],
+                    x: params.pos[0],
+                    y: params.pos[1]
+                })
+            });
+        }
+    });
+
+    // 添加连接端点
+    jsPlumbInstance.addEndpoint(el, { anchor: "Right", isSource: true, endpoint: "Dot" });
+    jsPlumbInstance.addEndpoint(el, { anchor: "Left", isTarget: true, endpoint: "Dot" });
+
+    // 点击打开编辑器
+    el.addEventListener("click", () => openEditor(node.page_id));
+}
+
+// 打开编辑器
+async function openEditor(pageId) {
+    const res = await fetch(`/admin/api/page/get?story_id=${storyId}&local_page_id=${pageId}`);
+    const data = await res.json();
+    // 这里可以弹出编辑框，暂时先log
+    console.log('编辑页面:', data);
+    alert(`编辑第${pageId}页：${data.content.substring(0,20)}...`);
+}
+
+// 新增页面（修复点击无反应问题）
+function addNode() {
+    const newId = graphData.nodes.length + 1;
+    // 先保存到数据库
+    fetch("/admin/api/page/save", {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({
+            story_id: storyId,
+            local_page_id: newId,
+            content: "新页面内容",
+            options: [],
+            page_type: "process",
+            is_true_ending: 0,
+            pos_x: 50 + newId * 30,
+            pos_y: 50 + newId * 30
+        })
+    }).then(res => {
+        if(res.ok) {
+            // 重新加载数据
+            loadGraph();
+            alert(`新增第${newId}页成功`);
+        } else {
+            alert('新增失败，请检查控制台');
+        }
+    });
+}
+
+// 保存所有修改（修复样式问题，用btn-blue类）
+function saveAll() {
+    alert('所有修改已实时保存到数据库！');
+}
+
+
+function publishAll() {
+    if(confirm('确认将所有草稿发布到正式库？发布后不可撤回！')) {
+        // 遍历所有草稿页发布
+        fetch(`/admin/api/story/${storyId}/publish_all`, {method: "POST"})
+            .then(res => res.json())
+            .then(data => alert(data.message));
+    }
+}
+</script>
+{% endblock %}
+

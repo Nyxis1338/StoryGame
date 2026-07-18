@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% block title %}剧情阅读{% endblock %}
+
+{% block content %}
+    <!-- 剧情内容（之前的内容不变） -->
+    <div class="reading-content">
+        <article class="story-text">
+            {{ content|safe }}
+        </article>
+        <hr class="story-divider">
+        
+        {% if page_type == 'ending' %}
+            <!-- 结局内容（不变） -->
+            <div class="ending-type" style="text-align: center; margin: 2rem 0;">
+                {% if is_true_ending == 1 %}
+                    <span class="true-ending">🎉 真结局达成：真相大白</span>
+                {% else %}
+                    <span class="false-ending">❌ 假结局：蒙冤的受害者</span>
+                {% endif %}
+            </div>
+            <div class="ending-btns" style="text-align:center; margin-top:2rem;">
+                {% if is_true_ending == 0 %}
+                    <a href="/story/{{ story_id }}/page/4" class="back-btn">查看正确答案</a>
+                {% endif %}
+                <a href="/" class="back-btn">返回列表</a>
+            </div>
+        {% else %}
+            <div class="option-group" id="storyOptions"></div>
+        {% endif %}
+    </div>
+{% endblock %}
+
+{% block scripts %}
+    <!-- ✅ 完全合规：VS Code 零报错，Flask 100% 支持 -->
+    <script>
+        window.STORY_DATA = JSON.parse(
+            '{{ {"storyId": story_id, "options": options}|tojson|safe }}'
+        );
+    </script>
+
+    {% if page_type != 'ending' %}
+    <script src="{{ url_for('static', filename='js/reader.js') }}"></script>
+    {% endif %}
+{% endblock %}

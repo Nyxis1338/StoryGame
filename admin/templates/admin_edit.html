@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+{% block title %}编辑故事{% endblock %}
+
+{% block content %}
+<div class="card">
+    <!-- 顶部工具栏：切换按钮 + 返回 -->
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
+        <h2>编辑故事：{{ story[1] }}</h2>
+        <div class="btn-group">
+            <a href="/admin/story/{{ story[0] }}/mindmap" class="btn-blue">
+                🧠 切换到思维导图
+            </a>
+            <a href="/admin" class="btn-gray">
+                返回列表
+            </a>
+        </div>
+    </div>
+
+    <!-- 表单内容 -->
+    <form method="POST">
+        <div class="form-group" style="margin-bottom: 1rem;">
+            <label style="display: block; margin-bottom: 0.5rem; color: #5a6c7d;">故事名称</label>
+            <input type="text" name="story_name" value="{{ story[1] }}" class="form-control">
+        </div>
+        
+        <div class="form-group" style="margin-bottom: 1rem;">
+            <label style="display: block; margin-bottom: 0.5rem; color: #5a6c7d;">故事简介</label>
+            <textarea name="story_desc" rows="4" class="form-control">{{ story[2] }}</textarea>
+        </div>
+        
+        <!-- 页面编辑区域（动态生成） -->
+        <div id="pages-container">
+            {% for page in pages %}
+            <div class="page-card" style="border: 1px solid #e4e7eb; border-radius: 8px; padding: 1.5rem; margin-bottom: 1rem;">
+                <h4 style="color: #2c3e50; margin-bottom: 1rem;">第 {{ page[2] }} 页</h4>
+                <div class="form-group" style="margin-bottom: 1rem;">
+                    <label style="display: block; margin-bottom: 0.5rem; color: #5a6c7d;">内容</label>
+                    <textarea name="content_{{ page[2] }}" rows="6" class="form-control">{{ page[3] }}</textarea>
+                </div>
+                <div class="form-group" style="margin-bottom: 1rem;">
+                    <label style="display: block; margin-bottom: 0.5rem; color: #5a6c7d;">页面类型</label>
+                    <select name="page_type_{{ page[2] }}" class="form-control">
+                        <option value="start" {% if page[5] == 'start' %}selected{% endif %}>起始页</option>
+                        <option value="process" {% if page[5] == 'process' %}selected{% endif %}>过程页</option>
+                        <option value="ending" {% if page[5] == 'ending' %}selected{% endif %}>结局页</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label style="display: block; margin-bottom: 0.5rem; color: #5a6c7d;">是否真结局</label>
+                    <select name="is_true_ending_{{ page[2] }}" class="form-control">
+                        <option value="0" {% if page[6] == 0 %}selected{% endif %}>否</option>
+                        <option value="1" {% if page[6] == 1 %}selected{% endif %}>是</option>
+                    </select>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        
+        <button type="submit" class="btn-blue" style="width: 100%; padding: 0.8rem; margin-top: 1rem;">
+            💾 保存所有修改
+        </button>
+    </form>
+</div>
+{% endblock %}
