@@ -2,7 +2,7 @@
 {% block title %}侦探手记{% endblock %}
 
 {% block content %}
-<!-- 欢迎屏内容（现在归首页自己管，不会被其他页面覆盖） -->
+<!-- 欢迎屏内容 -->
 <div class="welcome-screen" id="welcomeScreen">
     <div class="welcome-content">
         <h2>📜 欢迎来到侦探手记</h2>
@@ -15,7 +15,7 @@
     </div>
 </div>
 
-<!-- 阅读区容器（和剧情页共用结构，方便JS统一操作） -->
+<!-- 阅读区容器 -->
 <div class="reading-content" id="readingContent" style="display: none;">
     <article class="story-text" id="storyContent"></article>
     <hr class="story-divider">
@@ -24,8 +24,47 @@
 {% endblock %}
 
 {% block scripts %}
-<!-- 公共故事逻辑（处理无刷新翻页，全局生效） -->
-<script src="{{ url_for('static', filename='js/story.js') }}"></script>
-<!-- 首页专属交互逻辑（只处理搜索、开始阅读点击） -->
-<script src="{{ url_for('static', filename='js/index.js') }}"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // 1. 【原有逻辑】开始阅读按钮跳转
+    document.querySelectorAll('.start-read-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const storyId = this.dataset.storyId;
+            window.location.href = `/story/${storyId}/page/1`;
+        });
+    });
+
+    // 2. 【新增】搜索框逻辑
+    const searchInput = document.getElementById('storySearch');
+    const searchIcon = document.getElementById('searchIcon');
+    const storyCards = document.querySelectorAll('.story-card');
+
+    // 如果当前页面没有搜索框（比如剧情页），直接跳过
+    if (!searchInput) return;
+
+    /**
+     * 过滤故事卡片的核心函数
+     */
+    function filterStories() {
+        const keyword = searchInput.value.trim().toLowerCase();
+        storyCards.forEach(card => {
+            const title = card.querySelector('.story-title')?.textContent.toLowerCase() || '';
+            const desc = card.querySelector('.story-desc')?.textContent.toLowerCase() || '';
+            // 匹配标题或描述，关键字为空时显示全部
+            if (title.includes(keyword) || desc.includes(keyword) || keyword === '') {
+                card.style.display = 'block';
+            } else {
+                card.style.display = 'none';
+            }
+        });
+    }
+
+    // 绑定事件：输入时实时过滤 / 点击图标触发 / 按回车触发
+    searchInput.addEventListener('input', filterStories);
+    searchIcon.addEventListener('click', filterStories);
+    searchInput.addEventListener('keyup', (e) => {
+        if (e.key === 'Enter') filterStories();
+    });
+});
+</script>
 {% endblock %}

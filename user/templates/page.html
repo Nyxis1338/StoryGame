@@ -2,43 +2,45 @@
 {% block title %}剧情阅读{% endblock %}
 
 {% block content %}
-    <!-- 剧情内容（之前的内容不变） -->
-    <div class="reading-content">
-        <article class="story-text">
-            {{ content|safe }}
-        </article>
-        <hr class="story-divider">
-        
-        {% if page_type == 'ending' %}
-            <!-- 结局内容（不变） -->
-            <div class="ending-type" style="text-align: center; margin: 2rem 0;">
-                {% if is_true_ending == 1 %}
-                    <span class="true-ending">🎉 真结局达成：真相大白</span>
-                {% else %}
-                    <span class="false-ending">❌ 假结局：蒙冤的受害者</span>
-                {% endif %}
-            </div>
-            <div class="ending-btns" style="text-align:center; margin-top:2rem;">
-                {% if is_true_ending == 0 %}
-                    <a href="/story/{{ story_id }}/page/4" class="back-btn">查看正确答案</a>
-                {% endif %}
-                <a href="/" class="back-btn">返回列表</a>
-            </div>
-        {% else %}
-            <div class="option-group" id="storyOptions"></div>
-        {% endif %}
-    </div>
+<div class="reading-content">
+    <article class="story-text">
+        {{ content|safe }}
+    </article>
+    <hr class="story-divider">
+    
+    {% if page_type == 'ending' %}
+        <!-- 结局页：纯HTML，无JS干扰 -->
+        <div class="ending-section" style="text-align:center; padding:2rem; background:#f8f9fa; border-radius:8px; margin-top:1rem;">
+            {% if is_true_ending == 1 %}
+                <h3 style="color:#2ecc71;">🎉 真结局达成：真相大白</h3>
+                <p style="color:#666;">你收集了所有关键线索，揭开了全部真相。</p>
+            {% else %}
+                <h3 style="color:#e74c3c;">❌ 假结局：线索不足</h3>
+                <p style="color:#666;">你遗漏了关键证据，陷入了错误的推论。</p>
+            {% endif %}
+        </div>
+        <div class="ending-btns" style="text-align:center; margin-top:2rem;">
+            {% if is_true_ending == 0 %}
+                <a href="/story/{{ story_id }}/page/4" class="back-btn" style="background:#3498db; color:white; padding:10px 20px; margin-right:10px; text-decoration:none; border-radius:6px;">查看正确答案</a>
+            {% endif %}
+            <a href="/" class="back-btn" style="background:#6c757d; color:white; padding:10px 20px; text-decoration:none; border-radius:6px;">返回故事列表</a>
+        </div>
+    {% else %}
+        <!-- 过程页：直接用 Jinja2 循环渲染按钮 -->
+        <div class="option-group" id="storyOptions">
+            {% for opt in options %}
+                <a href="/story/{{ story_id }}/page/{{ opt.jump_local_id }}" 
+                   class="option-btn" 
+                   style="display:block; width:100%; margin:0.5rem 0; padding:1rem; background:#3498db; color:white; text-decoration:none; border-radius:6px; text-align:left;">
+                    {{ opt.text }}
+                </a>
+            {% endfor %}
+        </div>
+    {% endif %}
+</div>
 {% endblock %}
 
 {% block scripts %}
-    <!-- ✅ 完全合规：VS Code 零报错，Flask 100% 支持 -->
-    <script>
-        window.STORY_DATA = JSON.parse(
-            '{{ {"storyId": story_id, "options": options}|tojson|safe }}'
-        );
-    </script>
-
-    {% if page_type != 'ending' %}
-    <script src="{{ url_for('static', filename='js/reader.js') }}"></script>
-    {% endif %}
+    <!-- ✅ 留空或仅加载极简的辅助JS（如字体缩放等），不要加载 reader.js -->
+    <!-- 如果需要无刷新翻页，我们稍后再用另一种方式实现，现在先保证不出错 -->
 {% endblock %}

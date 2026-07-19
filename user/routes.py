@@ -2,6 +2,7 @@ from flask import Blueprint, render_template, request, abort, jsonify, session, 
 import sqlite3
 import json
 import config
+import random
 
 bp = Blueprint("user", __name__, url_prefix="")
 
@@ -22,14 +23,10 @@ def story_list():
 def story_page(story_id, local_page_id):
     # ===== 最强调试：如果这行不打印，说明代码没保存或者路由没注册 =====
     print(f"\n\n🚨🚨🚨 进入 story_page 函数！ Story: {story_id}, Page: {local_page_id} 🚨🚨🚨\n\n")
-    
     try:
         db = get_db()
-        # 查故事列表（给左侧栏用）
         stories = db.execute("SELECT story_id, story_name, story_desc FROM story").fetchall()
-        print(f"[DEBUG] 查到 {len(stories)} 个故事")
         
-        # 查当前页
         page = db.execute(
             """SELECT content, options, page_type, is_true_ending 
                FROM story_page 
@@ -38,25 +35,24 @@ def story_page(story_id, local_page_id):
         ).fetchone()
 
         if not page:
-            print(f"[ERROR] 页面不存在: story={story_id}, page={local_page_id}")
             return "Page not found in DB", 404
 
         content, options_json, page_type, is_true_ending = page
-        print(f"[DEBUG] 数据库内容: page_type={page_type}, is_true_ending={is_true_ending}")
-        print(f"[DEBUG] 正文前20字: {content[:20]}")
-
-        # 记录session
+        options = json.loads(options_json) if options_json else []
+        
+        # ✅ 核心：随机打乱选项顺序（非结局页才需要）
+        if page_type != 'ending' and options:
+            random.shuffle(options)
+        
         session["last_story_id"] = story_id
         session["last_page_id"] = local_page_id
 
-        # 渲染page.html
-        print(f"[DEBUG] 准备渲染 page.html")
         return render_template(
             "page.html",
             stories=stories,
             story_id=story_id,
             content=content,
-            options=json.loads(options_json) if options_json else [],
+            options=options,  # 传入打乱后的选项
             page_type=page_type,
             is_true_ending=is_true_ending
         )
@@ -65,7 +61,6 @@ def story_page(story_id, local_page_id):
         import traceback
         traceback.print_exc()
         return "Internal Server Error", 500
-
 
 @bp.route("/ending")
 def ending():

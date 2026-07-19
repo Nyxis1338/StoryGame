@@ -1,13 +1,16 @@
-from flask import Blueprint, render_template, request, abort, jsonify, session, redirect, url_for
+from flask import Blueprint, render_template, request, jsonify, session, redirect, url_for, send_from_directory
 import sqlite3
 import json
-import os
 import config
+import os
+from datetime import datetime
 
 bp = Blueprint("admin", __name__, url_prefix="/admin")
 
 def get_db():
-    return sqlite3.connect(config.DB_PATH)
+    db = sqlite3.connect(config.DB_PATH)
+    db.row_factory = sqlite3.Row
+    return db
 
 # ===== 原有管理路由（完全保留）=====
 @bp.route("/")
@@ -98,60 +101,204 @@ def story_edit(story_id):
         ).fetchall()
     return render_template("admin_edit.html", story=story, pages=pages)
 
+# 新建故事页面
+@bp.route("/story/create", methods=["GET"])
+def create_story_page():
+    return render_template("story_create.html")
+
+# 处理新建故事提交
+@bp.route("/story/create", methods=["POST"])
+def create_story():
+    data = request.form
+    db = get_db()
+    try:
+        # 1. 插入故事基础信息
+        cursor = db.execute(
+            "INSERT INTO story (story_name, story_desc) VALUES (?, ?)",
+            (data["story_name"], data["story_desc"])
+        )
+        story_id = cursor.lastrowid
+        
+        # 2. 创建起始页草稿（初始化空选项，后续可编辑）
+        draft_content = {
+            "content": "这里是故事的起始页，写下开篇的悬念...",
+            "options": [],  # 关键：初始化空选项数组
+            "page_type": "start",
+            "is_true_ending": 0,
+            "pos_x": 400,  # 画布中心位置
+            "pos_y": 200
+        }
+        db.execute("""
+            INSERT INTO story_page_draft (story_id, local_page_id, draft_data)
+            VALUES (?, ?, ?)
+        """, (
+            story_id,
+            1,  # 第一页固定为start页
+            json.dumps(draft_content, ensure_ascii=False)
+        ))
+        db.commit()
+        # 跳转到新建故事的思维导图
+        return redirect(f"/admin/story/{story_id}/mindmap")
+    except Exception as e:
+        db.rollback()
+        return render_template("story_create.html", error=f"新建失败：{str(e)}")
+
 # ===== 新增思维导图相关接口 =====
 @bp.route("/story/<int:story_id>/mindmap")
 def story_mindmap(story_id):
-    # 获取故事数据
-    with get_db() as db:
-        story = db.execute("SELECT * FROM story WHERE story_id=?", (story_id,)).fetchone()
-        if not story:
-            abort(404)
+    db = get_db()
+    story = db.execute("SELECT * FROM story WHERE story_id=?", (story_id,)).fetchone()
+    if not story:
+        return "故事不存在", 404
     return render_template("story_mindmap.html", story=story, story_id=story_id)
 
+# 2. 获取思维导图数据（核心）
 @bp.route("/api/story/<int:story_id>/graph")
 def get_story_graph(story_id):
-    """获取思维导图数据"""
-    with get_db() as db:
-        pages = db.execute(
-            """SELECT local_page_id, content, options, page_type, pos_x, pos_y 
-               FROM story_page WHERE story_id=?""",
-            (story_id,)
-        ).fetchall()
-    
-    nodes = []
-    edges = []
-    for p in pages:
-        pid, content, options_json, ptype, x, y = p
-        nodes.append({
-            "id": f"page_{pid}",
-            "page_id": pid,
-            "content": content[:30] + "..." if len(content) > 30 else content,
-            "type": ptype,
-            "left": x,
-            "top": y
+    try:
+        db = get_db()
+        
+        # 优先从草稿表读取最新数据
+        drafts = db.execute("""
+            SELECT local_page_id, draft_data 
+            FROM story_page_draft 
+            WHERE story_id=? 
+            AND (story_id, local_page_id, created_at) IN (
+                SELECT story_id, local_page_id, MAX(created_at)
+                FROM story_page_draft
+                GROUP BY story_id, local_page_id
+            )
+        """, (story_id,)).fetchall()
+        
+        nodes = []
+        edges = []
+        
+        if drafts:
+            # 使用草稿数据
+            for d in drafts:
+                page_id = d["local_page_id"]
+                try:
+                    data = json.loads(d["draft_data"])
+                except json.JSONDecodeError:
+                    # 如果JSON解析失败，尝试直接使用（可能是已经解析的对象）
+                    data = d["draft_data"] if isinstance(d["draft_data"], dict) else {}
+                
+                nodes.append({
+                    "page_id": page_id,
+                    "content": data.get("content", ""),
+                    "page_type": data.get("page_type", "process"),
+                    "is_true_ending": data.get("is_true_ending", 0),
+                    "pos_x": data.get("pos_x", 50),
+                    "pos_y": data.get("pos_y", 50)
+                })
+                
+                # 从options生成连线
+                options = data.get("options", [])
+                if isinstance(options, str):
+                    options = json.loads(options)
+                
+                for opt in options:
+                    if isinstance(opt, dict) and "jump_local_id" in opt:
+                        edges.append({
+                            "source": page_id,
+                            "target": opt["jump_local_id"],
+                            "label": opt.get("text", "")[:10]
+                        })
+        else:
+            # 从正式表读取
+            pages = db.execute("""
+                SELECT local_page_id, content, options, page_type, is_true_ending, pos_x, pos_y
+                FROM story_page
+                WHERE story_id=?
+                ORDER BY local_page_id
+            """, (story_id,)).fetchall()
+            
+            for p in pages:
+                nodes.append({
+                    "page_id": p["local_page_id"],
+                    "content": p["content"],
+                    "page_type": p["page_type"],
+                    "is_true_ending": p["is_true_ending"],
+                    "pos_x": p["pos_x"],
+                    "pos_y": p["pos_y"]
+                })
+                
+                options = json.loads(p["options"]) if p["options"] else []
+                for opt in options:
+                    edges.append({
+                        "source": p["local_page_id"],
+                        "target": opt["jump_local_id"],
+                        "label": opt["text"][:10]
+                    })
+        
+        return jsonify({
+            "nodes": nodes,
+            "edges": edges,
+            "story_id": story_id
         })
-        options = json.loads(options_json) if options_json else []
-        for opt in options:
-            edges.append({
-                "source": f"page_{pid}",
-                "target": f"page_{opt['jump_local_id']}",
-                "label": opt["text"]
-            })
-    return jsonify({"nodes": nodes, "edges": edges})
+        
+    except Exception as e:
+        print(f"[ERROR] get_story_graph: {e}")
+        return jsonify({"nodes": [], "edges": [], "error": str(e)}), 500
 
+# 3. 保存节点位置（拖动节点后调用）
 @bp.route("/api/node/move", methods=["POST"])
 def move_node():
-    """保存节点拖拽位置"""
-    data = request.json
-    with get_db() as db:
-        db.execute(
-            """UPDATE story_page 
-               SET pos_x=?, pos_y=? 
-               WHERE story_id=? AND local_page_id=?""",
-            (data["x"], data["y"], data["story_id"], data["page_id"])
-        )
+    try:
+        data = request.json
+        db = get_db()
+        
+        # 1. 先取现有最新草稿数据
+        existing_draft = db.execute("""
+            SELECT draft_data FROM story_page_draft
+            WHERE story_id=? AND local_page_id=?
+            ORDER BY created_at DESC LIMIT 1
+        """, (data["story_id"], data["page_id"])).fetchone()
+
+        if existing_draft:
+            # 2. 解析现有数据
+            draft_content = json.loads(existing_draft["draft_data"])
+            # 3. 仅更新坐标，保留其他所有数据（包括options）
+            draft_content["pos_x"] = data["x"]
+            draft_content["pos_y"] = data["y"]
+        else:
+            # 4. 如果草稿不存在，从正式表取基础数据并初始化坐标
+            formal_page = db.execute("""
+                SELECT content, options, page_type, is_true_ending
+                FROM story_page
+                WHERE story_id=? AND local_page_id=?
+            """, (data["story_id"], data["page_id"])).fetchone()
+            
+            if not formal_page:
+                return jsonify(status="error", message="页面不存在"), 404
+                
+            draft_content = {
+                "content": formal_page["content"],
+                "options": json.loads(formal_page["options"]) if formal_page["options"] else [],
+                "page_type": formal_page["page_type"],
+                "is_true_ending": formal_page["is_true_ending"],
+                "pos_x": data["x"],  # 使用传入的坐标
+                "pos_y": data["y"]
+            }
+        
+        # 5. 【关键修正】删除该页面旧的草稿记录，然后插入新记录（或者用UPDATE）
+        # 方案A：删除后插入（简单直接）
+        db.execute("""
+            DELETE FROM story_page_draft 
+            WHERE story_id=? AND local_page_id=?
+        """, (data["story_id"], data["page_id"]))
+        
+        db.execute("""
+            INSERT INTO story_page_draft (story_id, local_page_id, draft_data)
+            VALUES (?, ?, ?)
+        """, (data["story_id"], data["page_id"], json.dumps(draft_content)))
+        
         db.commit()
-    return jsonify(status="ok")
+        return jsonify(status="success")
+    except Exception as e:
+        print(f"[ERROR] 保存节点位置失败：{e}")
+        return jsonify(status="error", message=str(e)), 500
+
 
 @bp.route("/api/page/get")
 def get_page():
@@ -174,21 +321,43 @@ def get_page():
         "is_true_ending": page[3]
     })
 
+# 4. 保存页面草稿（编辑内容/选项后调用）
 @bp.route("/api/page/save", methods=["POST"])
 def save_page():
-    data = request.json
     try:
-        with get_db() as db:
-            # 1. 先存草稿，不直接改正式表
-            db.execute(
-                """INSERT INTO story_page_draft (story_id, local_page_id, draft_data)
-                   VALUES (?,?,?)""",
-                (data["story_id"], data["local_page_id"], json.dumps(data))
-            )
-            db.commit()
-        return jsonify(status="draft_saved", message="草稿已保存，请确认后发布")
+        data = request.json
+        db = get_db()
+        story_id = data["story_id"]
+        page_id = data["local_page_id"]
+        
+        # 准备草稿数据
+        draft_data = {
+            "content": data.get("content", ""),
+            "options": data.get("options", []),
+            "page_type": data.get("page_type", "process"),
+            "is_true_ending": data.get("is_true_ending", 0),
+            "pos_x": data.get("pos_x", 50),
+            "pos_y": data.get("pos_y", 50)
+        }
+        
+        # 删除旧草稿，插入新草稿
+        db.execute("""
+            DELETE FROM story_page_draft 
+            WHERE story_id=? AND local_page_id=?
+        """, (story_id, page_id))
+        
+        db.execute("""
+            INSERT INTO story_page_draft (story_id, local_page_id, draft_data)
+            VALUES (?, ?, ?)
+        """, (story_id, page_id, json.dumps(draft_data)))
+        
+        db.commit()
+        return jsonify(status="draft_saved")
+        
     except Exception as e:
+        print(f"[ERROR] save_page: {e}")
         return jsonify(status="error", message=str(e)), 500
+
 
 # 新增发布接口（作者确认后调用）
 @bp.route("/api/page/publish", methods=["POST"])

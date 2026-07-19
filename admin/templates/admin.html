@@ -2,6 +2,11 @@
 {% block title %}管理首页{% endblock %}
 {% block content %}
 <div class="card">
+    <h2>故事管理</h2>
+    <div style="margin-bottom:1.5rem;">
+        <a href="/admin/story/create" class="btn-blue">➕ 新建故事</a>
+        <span style="color:#666; margin-left:1rem; font-size:0.9rem;">新建的故事默认存在草稿中，发布后才对读者可见</span>
+    </div>
     <h2>📚 故事列表</h2>
     <p>选择故事进行编辑，支持「表单编辑」和「思维导图编辑」两种模式</p>
 
@@ -23,6 +28,16 @@
                 </td>
                 <td>
                     <div class="story-desc-cell">{{ s[2] }}</div>
+                </td>
+                <td>                    
+                    <div style="margin-top:0.5rem;">
+                        {% set is_published = s[3] %} {# 假设story表有is_published字段，没有的话可以加 #}
+                        {% if is_published %}
+                            <span style="color:#27ae60; font-size:0.8rem;">✅ 已发布</span>
+                        {% else %}
+                            <span style="color:#f39c12; font-size:0.8rem;">📝 草稿中</span>
+                        {% endif %}
+                    </div>
                 </td>
                 <td>
                     <div class="btn-group">
