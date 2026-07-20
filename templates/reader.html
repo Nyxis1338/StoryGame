@@ -1,0 +1,15 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>📖 阅读故事</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/reader.css') }}">
+</head>
+<body class="reader-body">
+    <div id="app" data-story-id="{{ story_id }}"></div>
+    <script src="https://cdn.jsdelivr.net/npm/vue@3/dist/vue.global.js"></script>
+    <!-- ✅ 添加 marked.js 用于渲染 Markdown -->
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <script src="{{ url_for('static', filename='js/reader.js') }}"></script>
+</body>
+</html>

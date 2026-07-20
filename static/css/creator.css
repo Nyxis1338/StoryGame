@@ -1,0 +1,332 @@
+/* ==========================================
+   创作端 - 现代工作台 (creator.css)
+   适用于 creator_index.html 和 creator.html
+   ========================================== */
+
+/* ---------- 全局 ---------- */
+.creator-body {
+    background: #f0f2f5;
+    font-family: -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
+    margin: 0;
+    padding: 0;
+    min-height: 100vh;
+}
+
+/* ---------- 创作者首页 ---------- */
+.creator-dashboard {
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 30px 20px;
+}
+
+.creator-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    margin-bottom: 30px;
+}
+.creator-header h1 {
+    font-weight: 600;
+    font-size: 28px;
+    color: #1a1a2e;
+    margin: 0;
+}
+
+/* ---------- 工具栏 ---------- */
+.creator-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-bottom: 25px;
+    align-items: center;
+    background: white;
+    padding: 15px 20px;
+    border-radius: 12px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+}
+.creator-toolbar .filter-btn {
+    padding: 6px 16px;
+    border-radius: 20px;
+    border: 1px solid #d9d9d9;
+    background: white;
+    color: #555;
+    cursor: pointer;
+    font-size: 14px;
+    transition: all 0.2s;
+}
+.creator-toolbar .filter-btn.active {
+    background: #1a73e8;
+    color: white;
+    border-color: #1a73e8;
+}
+.creator-toolbar .filter-btn:hover:not(.active) {
+    border-color: #1a73e8;
+    color: #1a73e8;
+}
+.creator-toolbar .search-input {
+    flex: 1;
+    min-width: 200px;
+    padding: 8px 16px;
+    border-radius: 20px;
+    border: 1px solid #d9d9d9;
+    outline: none;
+    font-size: 14px;
+}
+.creator-toolbar .search-input:focus {
+    border-color: #1a73e8;
+    box-shadow: 0 0 0 3px rgba(26, 115, 232, 0.1);
+}
+
+/* ---------- 故事卡片网格 ---------- */
+.creator-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 20px;
+}
+.creator-card {
+    background: white;
+    border-radius: 16px;
+    padding: 20px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+    transition: all 0.25s;
+    border: 1px solid #eee;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+}
+.creator-card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 12px 28px rgba(0,0,0,0.08);
+    border-color: #d0d7de;
+}
+.creator-card h3 {
+    margin: 0 0 8px;
+    font-size: 18px;
+}
+.creator-card h3 a {
+    color: #1a1a2e;
+    text-decoration: none;
+}
+.creator-card h3 a:hover {
+    color: #1a73e8;
+}
+.creator-card .desc {
+    color: #555;
+    font-size: 14px;
+    line-height: 1.5;
+    flex: 1;
+    margin: 8px 0 15px;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+.creator-card .meta {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 13px;
+    color: #888;
+    border-top: 1px solid #f0f0f0;
+    padding-top: 12px;
+    margin-top: 8px;
+}
+.creator-card .status-badge {
+    padding: 2px 12px;
+    border-radius: 30px;
+    font-size: 12px;
+    font-weight: 500;
+}
+.creator-card .status-badge.draft { background: #fff3cd; color: #856404; }
+.creator-card .status-badge.published { background: #d4edda; color: #155724; }
+.creator-card .btn-danger {
+    background: #ea4335;
+    color: white;
+    border: none;
+    padding: 4px 12px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 13px;
+}
+.creator-card .btn-danger:hover { background: #c62828; }
+
+/* ---------- 通用按钮 ---------- */
+.btn-primary {
+    background: #1a73e8;
+    color: white;
+    border: none;
+    padding: 10px 24px;
+    border-radius: 30px;
+    font-weight: 500;
+    cursor: pointer;
+    font-size: 15px;
+    transition: background 0.2s;
+}
+.btn-primary:hover { background: #1557b0; }
+.btn-success {
+    background: #28a745;
+    color: white;
+    border: none;
+    padding: 8px 20px;
+    border-radius: 30px;
+    font-weight: 500;
+    cursor: pointer;
+    font-size: 14px;
+    transition: background 0.2s;
+}
+.btn-success:hover { background: #218838; }
+
+/* ---------- 编辑器布局 ---------- */
+.editor-wrapper {
+    display: flex;
+    height: 100vh;
+    overflow: hidden;
+    background: #f0f2f5;
+}
+.editor-chart {
+    flex: 3;
+    height: 100%;
+    background: white;
+    margin: 12px 0 12px 12px;
+    border-radius: 16px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+    overflow: hidden;
+}
+.editor-panel {
+    flex: 1.2;
+    min-width: 380px;
+    background: white;
+    margin: 12px 12px 12px 8px;
+    border-radius: 16px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+    padding: 24px 28px;
+    overflow-y: auto;
+}
+.editor-panel .panel-title {
+    font-size: 20px;
+    font-weight: 600;
+    margin: 0 0 20px;
+    padding-bottom: 12px;
+    border-bottom: 2px solid #f0f0f0;
+}
+.editor-panel .panel-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 15px;
+}
+.editor-panel .status-tag {
+    background: #6c757d;
+    color: white;
+    padding: 4px 12px;
+    border-radius: 30px;
+    font-size: 13px;
+}
+
+/* ---------- 编辑器表单 ---------- */
+.editor-field {
+    margin-bottom: 18px;
+}
+.editor-field label {
+    display: block;
+    font-weight: 500;
+    font-size: 14px;
+    color: #333;
+    margin-bottom: 4px;
+}
+.editor-field textarea,
+.editor-field input,
+.editor-field select {
+    width: 100%;
+    padding: 10px 14px;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    font-size: 14px;
+    font-family: inherit;
+    transition: border 0.2s;
+    box-sizing: border-box;
+}
+.editor-field textarea:focus,
+.editor-field input:focus,
+.editor-field select:focus {
+    border-color: #1a73e8;
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(26, 115, 232, 0.1);
+}
+.editor-field textarea {
+    min-height: 120px;
+    resize: vertical;
+}
+
+/* ---------- 选项条目 ---------- */
+.editor-option-row {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    background: #f8f9fa;
+    padding: 8px 12px;
+    border-radius: 8px;
+    margin-bottom: 8px;
+}
+.editor-option-row input[type="text"] { flex: 2; }
+.editor-option-row input[type="number"] { flex: 0.8; }
+.editor-option-row .btn-remove-option {
+    background: #ea4335;
+    color: white;
+    border: none;
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    cursor: pointer;
+    font-size: 16px;
+    line-height: 28px;
+    text-align: center;
+    flex-shrink: 0;
+}
+.editor-option-row .btn-remove-option:hover { background: #c62828; }
+
+.btn-add-option {
+    background: #e8f0fe;
+    color: #1a73e8;
+    border: 1px dashed #1a73e8;
+    padding: 8px 16px;
+    border-radius: 20px;
+    cursor: pointer;
+    font-size: 14px;
+    transition: all 0.2s;
+}
+.btn-add-option:hover { background: #d2e3fc; }
+
+/* ---------- 保存按钮 ---------- */
+.btn-save {
+    background: #1a73e8;
+    color: white;
+    border: none;
+    padding: 10px 24px;
+    border-radius: 8px;
+    font-weight: 500;
+    cursor: pointer;
+    font-size: 15px;
+    transition: background 0.2s;
+}
+.btn-save:disabled { opacity: 0.6; cursor: not-allowed; }
+.btn-save:hover:not(:disabled) { background: #1557b0; }
+.save-hint {
+    color: #34a853;
+    font-size: 14px;
+    margin-left: 12px;
+}
+.editor-empty-hint {
+    color: #999;
+    text-align: center;
+    padding: 60px 0;
+    font-size: 16px;
+}
+
+/* ---------- 加载/空状态 ---------- */
+.creator-loading, .creator-no-more {
+    text-align: center;
+    padding: 20px;
+    color: #999;
+}

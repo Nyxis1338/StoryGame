@@ -1,47 +1,53 @@
-from user import create_user_app
-from admin import create_admin_app
-import multiprocessing
-import config
+from flask import Flask, render_template
+from models import db
+from routes.api import api_bp
+import os
 
-def run_user():
-    """运行读者端服务"""
-    user_app = create_user_app()
-    user_app.run(
-        port=config.USER_PORT,
-        debug=True,
-        use_reloader=False,  # 多进程下禁用重载器
-        host="0.0.0.0"
-    )
+# 获取项目根目录的绝对路径
+BASE_DIR = os.path.abspath(os.path.dirname(__file__))
+DB_PATH = os.path.join(BASE_DIR, 'game.db')
 
-def run_admin():
-    """运行管理端服务"""
-    admin_app = create_admin_app()
-    admin_app.run(
-        port=config.ADMIN_PORT,
-        debug=True,
-        use_reloader=False,  # 多进程下禁用重载器
-        host="127.0.0.1"    # 仅本地访问
-    )
+app = Flask(__name__)
+# 使用绝对路径连接数据库
+app.config['SQLALCHEMY_DATABASE_URI'] = f'sqlite:///{DB_PATH}'
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+db.init_app(app)
 
-if __name__ == "__main__":
-    # 创建两个进程
-    user_process = multiprocessing.Process(target=run_user)
-    admin_process = multiprocessing.Process(target=run_admin)
-    
-    # 启动进程
-    user_process.start()
-    admin_process.start()
-    
-    print(f"读者端运行在: http://0.0.0.0:{config.USER_PORT}")
-    print(f"管理端运行在: http://127.0.0.1:{config.ADMIN_PORT}")
-    
-    try:
-        # 等待进程结束
-        user_process.join()
-        admin_process.join()
-    except KeyboardInterrupt:
-        print("\n正在关闭服务...")
-        user_process.terminate()
-        admin_process.terminate()
-        user_process.join()
-        admin_process.join()
+# 注册 API 蓝图
+app.register_blueprint(api_bp)
+
+
+# ==========================================
+# 页面路由 - 仅渲染 HTML 骨架
+# ==========================================
+
+@app.route('/')
+def index():
+    """读者首页"""
+    return render_template('index.html')
+
+
+@app.route('/reader/<int:story_id>')
+def reader_page(story_id):
+    """读者阅读页"""
+    return render_template('reader.html', story_id=story_id)
+
+
+@app.route('/creator')
+def creator_index():
+    """创作者工作台"""
+    return render_template('creator_index.html')
+
+
+@app.route('/creator/<int:story_id>')
+def creator_editor(story_id):
+    """创作者编辑器"""
+    return render_template('creator.html', story_id=story_id)
+
+
+if __name__ == '__main__':
+    with app.app_context():
+        db.create_all()
+    print(f"✅ 数据库路径: {DB_PATH}")
+    print(f"✅ 数据库存在: {os.path.exists(DB_PATH)}")
+    app.run(debug=True)

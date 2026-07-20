@@ -1,0 +1,193 @@
+/* ==========================================
+   读者端 - 沉浸式阅读 (reader.css)
+   适用于 index.html 和 reader.html
+   ========================================== */
+
+/* ---------- 全局 ---------- */
+.reader-body {
+    background-color: #e8e0d5;
+    font-family: 'Georgia', 'Times New Roman', 'Songti SC', serif;
+    margin: 0;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 30px 15px;
+}
+
+/* ---------- 故事列表页 ---------- */
+.reader-container {
+    max-width: 720px;
+    width: 100%;
+    background: #fcf8f0;
+    padding: 3rem 3.5rem;
+    border-radius: 4px;
+    box-shadow: 0 15px 35px rgba(0, 0, 0, 0.2), 0 0 0 1px #dcd0c0 inset;
+    position: relative;
+}
+
+.reader-container::before {
+    content: '';
+    position: absolute;
+    top: -3px;
+    left: 10px;
+    right: 10px;
+    height: 6px;
+    background: radial-gradient(ellipse at center, rgba(0,0,0,0.1) 0%, transparent 70%);
+    border-radius: 50%;
+}
+
+.reader-title {
+    text-align: center;
+    color: #2c2c2c;
+    font-size: 2.2rem;
+    margin-bottom: 1.5rem;
+}
+
+.reader-search-box {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 25px;
+}
+.reader-search-box input {
+    flex: 1;
+    padding: 10px 16px;
+    border: 1px solid #dcd0c0;
+    border-radius: 30px;
+    font-size: 1rem;
+    background: #fffdf7;
+    outline: none;
+}
+.reader-search-box input:focus {
+    border-color: #b8a99a;
+    box-shadow: 0 0 0 3px rgba(184, 169, 154, 0.2);
+}
+.reader-search-box button {
+    padding: 10px 24px;
+    background: #8a7a6a;
+    color: white;
+    border: none;
+    border-radius: 30px;
+    cursor: pointer;
+    font-size: 1rem;
+    transition: background 0.2s;
+}
+.reader-search-box button:hover {
+    background: #6a5a4a;
+}
+
+/* ---------- 故事卡片 ---------- */
+.reader-story-item {
+    background: #fffdf7;
+    padding: 18px 22px;
+    border-radius: 8px;
+    margin-bottom: 15px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+    border-left: 4px solid #dcd0c0;
+    transition: all 0.25s;
+}
+.reader-story-item:hover {
+    border-left-color: #8a7a6a;
+    transform: translateX(4px);
+}
+.reader-story-item h3 {
+    margin: 0 0 6px;
+}
+.reader-story-item h3 a {
+    color: #2c2c2c;
+    text-decoration: none;
+}
+.reader-story-item h3 a:hover {
+    color: #6a5a4a;
+}
+.reader-story-item p {
+    margin: 4px 0;
+    color: #5a4a3a;
+    font-size: 0.95rem;
+}
+.reader-story-item .date {
+    font-size: 0.8rem;
+    color: #a09080;
+}
+
+/* ---------- 阅读页 ---------- */
+.reader-content {
+    font-size: 1.15rem;
+    line-height: 2;
+    color: #3a3a3a;
+    letter-spacing: 0.02em;
+    min-height: 200px;
+}
+.reader-content h1 {
+    font-size: 2rem;
+    border-bottom: 2px solid #dcd0c0;
+    padding-bottom: 15px;
+    text-align: center;
+    font-weight: bold;
+    color: #2c2c2c;
+}
+.reader-content p {
+    text-indent: 2em;
+    margin: 0.8em 0;
+}
+
+/* ---------- 读者选项 ---------- */
+.reader-options {
+    margin-top: 2.5rem;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    border-top: 1px dashed #dcd0c0;
+    padding-top: 2rem;
+}
+.reader-options button {
+    background: transparent;
+    border: 2px solid #b8a99a;
+    color: #4a3f35;
+    padding: 14px 24px;
+    font-size: 1.05rem;
+    font-family: inherit;
+    border-radius: 30px 10px 30px 10px;
+    cursor: pointer;
+    transition: all 0.25s ease;
+    text-align: left;
+    font-weight: bold;
+}
+.reader-options button:hover {
+    background: #b8a99a;
+    color: #fff;
+    transform: translateX(8px);
+    box-shadow: 4px 4px 0 rgba(0, 0, 0, 0.1);
+}
+.reader-back-btn {
+    margin-top: 30px;
+    background: transparent !important;
+    border: none !important;
+    color: #8a7a6a !important;
+    font-size: 0.95rem !important;
+    border-bottom: 2px dotted #b8a99a !important;
+    border-radius: 0 !important;
+    padding: 5px 0 !important;
+    display: inline-block !important;
+    width: auto !important;
+}
+.reader-back-btn:hover {
+    transform: translateX(-4px) !important;
+    color: #5a4a3a !important;
+    border-bottom-color: #5a4a3a !important;
+}
+.reader-ending {
+    text-align: center;
+    font-size: 1.5rem;
+    color: #8b5a3c;
+    padding: 30px 0;
+    border-top: 2px double #dcd0c0;
+    margin-top: 30px;
+}
+
+/* ---------- 加载/空状态 ---------- */
+.reader-loading, .reader-no-more {
+    text-align: center;
+    padding: 20px;
+    color: #a09080;
+}
