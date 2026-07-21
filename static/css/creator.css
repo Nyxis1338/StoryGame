@@ -1,18 +1,20 @@
 /* ==========================================
-   创作端 - 现代工作台 (creator.css)
-   适用于 creator_index.html 和 creator.html
+   创作端样式 - 现代工作台
    ========================================== */
 
-/* ---------- 全局 ---------- */
-.creator-body {
+body.creator-body {
     background: #f0f2f5;
-    font-family: -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
+    font-family: -apple-system, 'Segoe UI', Roboto, sans-serif;
     margin: 0;
     padding: 0;
     min-height: 100vh;
 }
 
-/* ---------- 创作者首页 ---------- */
+
+/* ==========================================
+   创作者首页
+   ========================================== */
+
 .creator-dashboard {
     max-width: 1100px;
     margin: 0 auto;
@@ -33,7 +35,33 @@
     margin: 0;
 }
 
-/* ---------- 工具栏 ---------- */
+/* 导航链接 */
+.creator-nav-links {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+}
+.creator-nav-links a {
+    color: #555;
+    text-decoration: none;
+    font-size: 14px;
+    padding: 4px 12px;
+    border-radius: 6px;
+    transition: background 0.2s;
+}
+.creator-nav-links a:hover {
+    background: #f0f0f0;
+    color: #1a73e8;
+}
+.creator-nav-links .logout-btn {
+    color: #ea4335;
+    cursor: pointer;
+}
+.creator-nav-links .logout-btn:hover {
+    background: #fce8e6;
+}
+
+/* 工具栏 */
 .creator-toolbar {
     display: flex;
     flex-wrap: wrap;
@@ -75,10 +103,10 @@
 }
 .creator-toolbar .search-input:focus {
     border-color: #1a73e8;
-    box-shadow: 0 0 0 3px rgba(26, 115, 232, 0.1);
+    box-shadow: 0 0 0 3px rgba(26,115,232,0.1);
 }
 
-/* ---------- 故事卡片网格 ---------- */
+/* 故事卡片网格 */
 .creator-grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
@@ -98,7 +126,6 @@
 .creator-card:hover {
     transform: translateY(-4px);
     box-shadow: 0 12px 28px rgba(0,0,0,0.08);
-    border-color: #d0d7de;
 }
 .creator-card h3 {
     margin: 0 0 8px;
@@ -138,8 +165,14 @@
     font-size: 12px;
     font-weight: 500;
 }
-.creator-card .status-badge.draft { background: #fff3cd; color: #856404; }
-.creator-card .status-badge.published { background: #d4edda; color: #155724; }
+.creator-card .status-badge.draft {
+    background: #fff3cd;
+    color: #856404;
+}
+.creator-card .status-badge.published {
+    background: #d4edda;
+    color: #155724;
+}
 .creator-card .btn-danger {
     background: #ea4335;
     color: white;
@@ -149,9 +182,11 @@
     cursor: pointer;
     font-size: 13px;
 }
-.creator-card .btn-danger:hover { background: #c62828; }
+.creator-card .btn-danger:hover {
+    background: #c62828;
+}
 
-/* ---------- 通用按钮 ---------- */
+/* 通用按钮 */
 .btn-primary {
     background: #1a73e8;
     color: white;
@@ -163,7 +198,9 @@
     font-size: 15px;
     transition: background 0.2s;
 }
-.btn-primary:hover { background: #1557b0; }
+.btn-primary:hover {
+    background: #1557b0;
+}
 .btn-success {
     background: #28a745;
     color: white;
@@ -175,56 +212,150 @@
     font-size: 14px;
     transition: background 0.2s;
 }
-.btn-success:hover { background: #218838; }
+.btn-success:hover {
+    background: #218838;
+}
+.btn-danger {
+    background: #ea4335;
+    color: white;
+    border: none;
+    padding: 8px 16px;
+    border-radius: 8px;
+    font-weight: 500;
+    cursor: pointer;
+    font-size: 14px;
+    transition: background 0.2s;
+}
+.btn-danger:hover {
+    background: #c62828;
+}
 
-/* ---------- 编辑器布局 ---------- */
+/* 加载/空状态 */
+.creator-loading,
+.creator-no-more {
+    text-align: center;
+    padding: 20px;
+    color: #999;
+}
+
+
+/* ==========================================
+   编辑器工作台
+   ========================================== */
+
 .editor-wrapper {
     display: flex;
+    flex-direction: column;
     height: 100vh;
-    overflow: hidden;
     background: #f0f2f5;
 }
-.editor-chart {
+
+/* 顶部导航栏 */
+.editor-navbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 24px;
+    background: white;
+    border-bottom: 1px solid #e0e0e0;
+    flex-shrink: 0;
+    z-index: 100;
+}
+
+/* 可拖拽分隔条 */
+.splitter {
+    width: 6px;
+    background: #e0e0e0;
+    cursor: col-resize;
+    flex-shrink: 0;
+    transition: background 0.2s;
+    position: relative;
+}
+.splitter:hover,
+.splitter.active {
+    background: #1a73e8;
+}
+.splitter::after {
+    content: '⋮';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    color: #999;
+    font-size: 14px;
+    font-weight: bold;
+}
+.splitter:hover::after {
+    color: white;
+}
+
+/* 主内容区 */
+.editor-main {
+    display: flex;
+    flex: 1;
+    overflow: hidden;
+    padding: 12px;
+    gap: 0;
+}
+
+/* 图表容器 */
+.chart-container {
     flex: 3;
+    min-width: 200px;
     height: 100%;
     background: white;
-    margin: 12px 0 12px 12px;
     border-radius: 16px;
     box-shadow: 0 2px 8px rgba(0,0,0,0.06);
     overflow: hidden;
+    min-height: 400px;
+    position: relative;
 }
+.chart-fullscreen-btn {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    z-index: 10;
+    background: rgba(255,255,255,0.9);
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    padding: 4px 8px;
+    cursor: pointer;
+    font-size: 12px;
+}
+.chart-fullscreen-btn:hover {
+    background: white;
+    border-color: #1a73e8;
+}
+
+/* 编辑面板 */
 .editor-panel {
     flex: 1.2;
-    min-width: 380px;
+    min-width: 280px;
     background: white;
-    margin: 12px 12px 12px 8px;
     border-radius: 16px;
     box-shadow: 0 2px 8px rgba(0,0,0,0.06);
     padding: 24px 28px;
     overflow-y: auto;
 }
-.editor-panel .panel-title {
-    font-size: 20px;
-    font-weight: 600;
-    margin: 0 0 20px;
-    padding-bottom: 12px;
-    border-bottom: 2px solid #f0f0f0;
-}
-.editor-panel .panel-header {
+.panel-header-bar {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: 15px;
+    margin-bottom: 10px;
 }
-.editor-panel .status-tag {
-    background: #6c757d;
-    color: white;
-    padding: 4px 12px;
-    border-radius: 30px;
-    font-size: 13px;
+.panel-fullscreen-btn {
+    background: transparent;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    padding: 4px 8px;
+    cursor: pointer;
+    font-size: 12px;
+}
+.panel-fullscreen-btn:hover {
+    background: #f0f0f0;
 }
 
-/* ---------- 编辑器表单 ---------- */
+/* 编辑器表单 */
 .editor-field {
     margin-bottom: 18px;
 }
@@ -244,23 +375,22 @@
     border-radius: 8px;
     font-size: 14px;
     font-family: inherit;
-    transition: border 0.2s;
     box-sizing: border-box;
+}
+.editor-field textarea {
+    min-height: 120px;
+    resize: vertical;
 }
 .editor-field textarea:focus,
 .editor-field input:focus,
 .editor-field select:focus {
     border-color: #1a73e8;
     outline: none;
-    box-shadow: 0 0 0 3px rgba(26, 115, 232, 0.1);
-}
-.editor-field textarea {
-    min-height: 120px;
-    resize: vertical;
+    box-shadow: 0 0 0 3px rgba(26,115,232,0.1);
 }
 
-/* ---------- 选项条目 ---------- */
-.editor-option-row {
+/* 选项行 */
+.option-row {
     display: flex;
     gap: 8px;
     align-items: center;
@@ -269,9 +399,15 @@
     border-radius: 8px;
     margin-bottom: 8px;
 }
-.editor-option-row input[type="text"] { flex: 2; }
-.editor-option-row input[type="number"] { flex: 0.8; }
-.editor-option-row .btn-remove-option {
+.option-row input[type="text"] {
+    flex: 2;
+    width: auto;
+}
+.option-row input[type="number"] {
+    flex: 0.8;
+    width: auto;
+}
+.btn-remove-option {
     background: #ea4335;
     color: white;
     border: none;
@@ -280,11 +416,11 @@
     border-radius: 50%;
     cursor: pointer;
     font-size: 16px;
-    line-height: 28px;
-    text-align: center;
     flex-shrink: 0;
 }
-.editor-option-row .btn-remove-option:hover { background: #c62828; }
+.btn-remove-option:hover {
+    background: #c62828;
+}
 
 .btn-add-option {
     background: #e8f0fe;
@@ -296,9 +432,11 @@
     font-size: 14px;
     transition: all 0.2s;
 }
-.btn-add-option:hover { background: #d2e3fc; }
+.btn-add-option:hover {
+    background: #d2e3fc;
+}
 
-/* ---------- 保存按钮 ---------- */
+/* 保存按钮 */
 .btn-save {
     background: #1a73e8;
     color: white;
@@ -310,23 +448,50 @@
     font-size: 15px;
     transition: background 0.2s;
 }
-.btn-save:disabled { opacity: 0.6; cursor: not-allowed; }
-.btn-save:hover:not(:disabled) { background: #1557b0; }
+.btn-save:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+.btn-save:hover:not(:disabled) {
+    background: #1557b0;
+}
+
 .save-hint {
     color: #34a853;
     font-size: 14px;
     margin-left: 12px;
 }
-.editor-empty-hint {
+
+.empty-hint {
     color: #999;
     text-align: center;
     padding: 60px 0;
     font-size: 16px;
 }
 
-/* ---------- 加载/空状态 ---------- */
-.creator-loading, .creator-no-more {
-    text-align: center;
-    padding: 20px;
-    color: #999;
+
+/* ==========================================
+   动画
+   ========================================== */
+
+@keyframes modalSlideIn {
+    from {
+        transform: scale(0.9);
+        opacity: 0;
+    }
+    to {
+        transform: scale(1);
+        opacity: 1;
+    }
+}
+
+@keyframes toastSlideDown {
+    from {
+        transform: translateX(-50%) translateY(-20px);
+        opacity: 0;
+    }
+    to {
+        transform: translateX(-50%) translateY(0);
+        opacity: 1;
+    }
 }

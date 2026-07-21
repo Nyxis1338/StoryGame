@@ -49,16 +49,8 @@ createApp({
             this.fetchStories(true);
         },
 
-        // 点击搜索按钮触发搜索
-        doSearch() {
+        search() {
             this.fetchStories(true);
-        },
-
-        // 按回车键触发搜索
-        handleKeydown(e) {
-            if (e.key === 'Enter') {
-                this.doSearch();
-            }
         },
 
         createStory() {
@@ -75,6 +67,13 @@ createApp({
                 .then(() => {
                     alert('✅ 已移至回收站');
                     this.fetchStories(true);
+                });
+        },
+
+        logout() {
+            fetch('/api/auth/logout', { method: 'POST' })
+                .then(() => {
+                    window.location.href = '/login';
                 });
         },
 
@@ -96,15 +95,20 @@ createApp({
         <div class="creator-dashboard">
             <div class="creator-header">
                 <h1>✍️ 我的故事</h1>
-                <button @click="createStory" class="btn-primary">➕ 新建故事</button>
+                <div style="display:flex; gap:12px; align-items:center;">
+                    <a href="/settings" style="color:#555; text-decoration:none; font-size:14px; padding:4px 12px; border-radius:6px;">⚙️ 修改密码</a>
+                    <a href="/trash" style="color:#555; text-decoration:none; font-size:14px; padding:4px 12px; border-radius:6px;">🗑️ 回收站</a>
+                    <a href="/" @click.prevent="logout" style="color:#ea4335; text-decoration:none; font-size:14px; padding:4px 12px; border-radius:6px;">🚪 退出</a>
+                    <button @click="createStory" class="btn-primary">➕ 新建故事</button>
+                </div>
             </div>
 
             <div class="creator-toolbar">
                 <button class="filter-btn" :class="{active: filterStatus === 'all'}" @click="setFilter('all')">全部</button>
                 <button class="filter-btn" :class="{active: filterStatus === 'draft'}" @click="setFilter('draft')">草稿</button>
                 <button class="filter-btn" :class="{active: filterStatus === 'published'}" @click="setFilter('published')">已发布</button>
-                <input type="text" class="search-input" v-model="keyword" placeholder="搜索故事名..." @keydown="handleKeydown">
-                <button @click="doSearch" class="btn-primary" style="padding:6px 16px; border-radius:20px;">搜索</button>
+                <input type="text" class="search-input" v-model="keyword" placeholder="搜索故事名..." @keydown.enter="search">
+                <button @click="search" class="btn-primary" style="padding:6px 16px; border-radius:20px;">搜索</button>
             </div>
 
             <div class="creator-grid">
