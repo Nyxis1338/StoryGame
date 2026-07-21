@@ -1,60 +1,289 @@
--- 管理员配置表
+-- --------------------------------------------------------
+-- 主机:                           D:\Workspace\StoryGame\game.db
+-- 服务器版本:                        3.48.0
+-- 服务器操作系统:                      
+-- HeidiSQL 版本:                  12.10.0.7000
+-- --------------------------------------------------------
+
+/*!40101 SET @OLD_CHARACTER_SET_CLIENT=@@CHARACTER_SET_CLIENT */;
+/*!40101 SET NAMES  */;
+/*!40103 SET @OLD_TIME_ZONE=@@TIME_ZONE */;
+/*!40103 SET TIME_ZONE='+00:00' */;
+/*!40014 SET @OLD_FOREIGN_KEY_CHECKS=@@FOREIGN_KEY_CHECKS, FOREIGN_KEY_CHECKS=0 */;
+/*!40101 SET @OLD_SQL_MODE=@@SQL_MODE, SQL_MODE='NO_AUTO_VALUE_ON_ZERO' */;
+/*!40111 SET @OLD_SQL_NOTES=@@SQL_NOTES, SQL_NOTES=0 */;
+
+
+-- 导出 game 的数据库结构
+CREATE DATABASE IF NOT EXISTS "game";
+;
+
+-- 导出  表 game.admin_config 结构
 CREATE TABLE IF NOT EXISTS admin_config (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     admin_pwd TEXT NOT NULL
 );
 
--- 故事表
+-- 正在导出表  game.admin_config 的数据：1 rows
+/*!40000 ALTER TABLE "admin_config" DISABLE KEYS */;
+INSERT INTO "admin_config" ("id", "admin_pwd") VALUES
+	(3, '2164e4c0ce6a7d3fd0a6b2b14df87609');
+/*!40000 ALTER TABLE "admin_config" ENABLE KEYS */;
+
+-- 导出  表 game.story 结构
 CREATE TABLE IF NOT EXISTS story (
     story_id INTEGER PRIMARY KEY AUTOINCREMENT,
     story_name TEXT NOT NULL,
     story_desc TEXT NOT NULL,
     create_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    is_published BOOLEAN DEFAULT 0
-);
+    is_published BOOLEAN DEFAULT 0,
+    -- 新增：草稿状态（用于区分"已发布"和"正在编辑"）
+    has_draft BOOLEAN DEFAULT 0,
+    -- 新增：更新时间
+    update_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+, is_deleted BOOLEAN DEFAULT 0);
 
--- 故事草稿表（故事级别）
-CREATE TABLE IF NOT EXISTS story_draft (
-    draft_id INTEGER PRIMARY KEY AUTOINCREMENT,
-    story_id INTEGER,
-    draft_data TEXT NOT NULL,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (story_id) REFERENCES story(story_id) ON DELETE CASCADE
-);
+-- 正在导出表  game.story 的数据：8 rows
+/*!40000 ALTER TABLE "story" DISABLE KEYS */;
+INSERT INTO "story" ("story_id", "story_name", "story_desc", "create_time", "is_published", "has_draft", "update_time", "is_deleted") VALUES
+	(1, '别墅毒杀案', '经典侦探推理剧本，找出别墅下毒的真凶', '2026-07-16 15:35:46', 1, 0, '2026-07-20 15:38:54', 0),
+	(2, '美术馆失窃案', '知名油画深夜被盗，四位嫌疑人各有谎言，找出真正的窃贼', '2026-07-16 15:35:46', 1, 0, '2026-07-20 15:38:54', 0),
+	(3, '校园画室失踪案', '美术社团深夜画室，一幅参赛原画凭空消失，锁定四名社团成员，找出偷画之人', '2026-07-16 15:47:26', 1, 0, '2026-07-20 15:38:54', 0),
+	(4, '古董店午夜失窃案', '深夜古董店价值百万的玉佩消失，门窗完好，嫌疑人共四人：守店老人、学徒、古玩买家、保洁阿姨，多条线索分散在不同分支，集齐物证才能锁定真凶', '2026-07-16 16:22:37', 1, 0, '2026-07-20 15:38:54', 0),
+	(5, '山间民宿失踪游客案', '深山民宿一名女游客一夜之间凭空消失，民宿仅有5人留宿，山路昨夜封闭无法下山，多条隐藏线索分布在不同调查分支，错选分支会永久丢失关键证据', '2026-07-16 16:22:50', 1, 0, '2026-07-20 15:38:54', 0),
+	(6, '雨夜别墅遗产案', '暴雨封山深夜，独居富豪死于书房，遗嘱离奇失踪。四名亲属全员撒谎、互相包庇、制造伪证，存在完美伪真相陷阱，需要深挖隐藏物证才能击穿双层谎言，找到真正幕后凶手。', '2026-07-16 16:30:51', 1, 0, '2026-07-20 15:38:54', 0),
+	(7, '未命名故事', '', '2026-07-20 17:05:32.332269', 0, 0, '2026-07-20 17:05:32.332280', 0),
+	(8, '未命名故事', '', '2026-07-20 17:14:55.981038', 0, 0, '2026-07-20 17:14:55.981046', 0);
+/*!40000 ALTER TABLE "story" ENABLE KEYS */;
 
--- 故事页面表（正式数据）
+-- 导出  表 game.story_page 结构
 CREATE TABLE IF NOT EXISTS story_page (
     global_id INTEGER PRIMARY KEY AUTOINCREMENT,
     story_id INTEGER NOT NULL,
     local_page_id INTEGER NOT NULL,
     page_type TEXT NOT NULL CHECK(page_type IN ('start','process','ending')),
     content TEXT NOT NULL,
-    options TEXT NOT NULL,  -- JSON格式：[{"text":"选项","jump_local_id":2}]
+    options TEXT NOT NULL,
     is_true_ending INTEGER DEFAULT 0 CHECK(is_true_ending IN (0,1)),
     pos_x INTEGER DEFAULT 50,
     pos_y INTEGER DEFAULT 50,
+    
+    -- ========== 新增：草稿字段 ==========
+    draft_content TEXT,                    -- 草稿版正文
+    draft_options TEXT,                    -- 草稿版选项
+    has_draft BOOLEAN DEFAULT 0,           -- 是否有未发布的草稿
+    
     UNIQUE(story_id, local_page_id),
     FOREIGN KEY (story_id) REFERENCES story(story_id)
 );
 
--- 故事页面草稿表（页面级别）
-CREATE TABLE IF NOT EXISTS story_page_draft (
-    draft_id INTEGER PRIMARY KEY AUTOINCREMENT,
-    story_id INTEGER NOT NULL,
-    local_page_id INTEGER NOT NULL,
-    draft_data TEXT NOT NULL,  -- JSON格式：完整页面数据
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (story_id) REFERENCES story(story_id) ON DELETE CASCADE
-);
+-- 正在导出表  game.story_page 的数据：43 rows
+/*!40000 ALTER TABLE "story_page" DISABLE KEYS */;
+INSERT INTO "story_page" ("global_id", "story_id", "local_page_id", "page_type", "content", "options", "is_true_ending", "pos_x", "pos_y", "draft_content", "draft_options", "has_draft") VALUES
+	(5, 2, 1, 'start', '# 美术馆失窃案
+凌晨两点，市美术馆镇馆之宝《秋日湖面》失窃。
+安保系统被人为关闭，监控全部损坏。
+四位嫌疑人：保洁阿姨、值班保安、油画修复师、参展富商。
+馆长委托你前来调查，你第一步选择调查谁？', '[{"text":"立刻单独询问值班保安","jump_local_id":3},{"text":"先查看失窃展厅现场痕迹","jump_local_id":2}]', 0, 400, 50, NULL, NULL, 0),
+	(6, 2, 2, 'process', '展厅地面留有细小油画颜料碎屑，颜色与失窃画作底色完全一致。墙角掉落一枚刻着修复工坊logo的金属小刀。
+保洁称昨晚未进入展厅；保安说监控是设备自然故障。', '[{"text":"传唤油画修复师对峙小刀线索","jump_local_id":4},{"text":"搜查富商随身背包","jump_local_id":5}]', 0, 200, 150, NULL, NULL, 0),
+	(7, 2, 3, 'process', '保安一口咬定没有任何人深夜进入展厅，说辞毫无破绽。你忽略了现场物证，错失关键线索。', '[{"text":"返回展厅重新勘察痕迹","jump_local_id":2},{"text":"直接审问修复师","jump_local_id":6}]', 0, 400, 150, NULL, NULL, 0),
+	(8, 2, 4, 'process', '修复师看到小刀瞬间神色慌乱，承认工具是自己的，但声称上周不慎遗失。
+你调取工坊出库记录，案发前三天他领取了同款溶剂，可溶解画框固定胶。', '[{"text":"申请搜查修复师工作室","jump_local_id":7},{"text":"相信修复师说辞，转而去盘问富商","jump_local_id":5}]', 0, 600, 150, NULL, NULL, 0),
+	(9, 2, 5, 'ending', '你全程怀疑富商，没有追踪颜料与工具线索。真正的修复师带着油画连夜出城，案件无法侦破。', '[]', 0, 100, 250, NULL, NULL, 0),
+	(10, 2, 6, 'ending', '没有现场物证支撑，修复师拒不认罪，缺少关键证据，只能无罪释放，画作下落不明。', '[]', 0, 300, 250, NULL, NULL, 0),
+	(11, 2, 7, 'ending', '在修复师工作室夹层找到完整失窃油画，颜料碎屑、专用工具、溶剂记录形成完整证据链。修复师因债务铤而走险，推理成功！', '[]', 1, 500, 250, NULL, NULL, 0),
+	(12, 3, 1, 'start', '# 校园画室失踪案
+周五深夜学校画室门锁完好，第二天一早参赛金奖原画不见踪影。
+画室窗户无撬动痕迹，钥匙只有社团四人持有：
+1. 内向原画作者 林晓；
+2. 负责打扫画室的值日生 张强；
+3. 嫉妒作者画技的竞争者 陈玥；
+4. 管理画室物资的社长 周子昂。
+窗台留有一小块深蓝色颜料，原画背景正好是深蓝色夜空。你先从哪里入手调查？', '[{"text":"直接怀疑竞争者陈玥，单独问话","jump_local_id":3},{"text":"先勘察窗台颜料痕迹，收集物证","jump_local_id":2}]', 0, 50, 50, NULL, NULL, 0),
+	(13, 3, 2, 'process', '颜料检测结果：属于画室专属高级绘图颜料，只有社长周子昂上周申领过同款深蓝色。
+张强说昨晚九点就锁门离开，林晓称画昨晚留在画室未带走，陈玥说从没碰过窗台区域。
+储物柜角落找到半支同款颜料笔，笔杆刻着社长名字缩写Z.A。', '[{"text":"立刻传唤社长周子昂对峙颜料笔","jump_local_id":4},{"text":"继续盘问值日生张强，怀疑他偷配钥匙","jump_local_id":5}]', 0, 50, 50, NULL, NULL, 0),
+	(14, 3, 3, 'process', '你全程紧盯陈玥，但她全程提供不在场证明，监控显示她当晚八点离校。
+完全忽略窗台颜料关键物证，没有任何线索指向真正偷画者，调查陷入僵局。', '[{"text":"返回画室重新勘察窗台痕迹","jump_local_id":2},{"text":"直接认定陈玥偷窃，上报老师结案","jump_local_id":6}]', 0, 50, 50, NULL, NULL, 0),
+	(15, 3, 4, 'ending', '面对颜料笔和专属颜料记录，周子昂坦白实情：他担心林晓这幅画夺走自己的升学名额，深夜偷偷开门取走原画藏在储物柜夹层，窗台颜料是转移画作时蹭落。所有物证形成完整证据链。', '[]', 1, 50, 50, NULL, NULL, 0),
+	(16, 3, 5, 'ending', '你错误锁定值日生张强，没有追查颜料这条核心线索，周子昂一直藏匿原画，案件无法侦破。', '[]', 0, 50, 50, NULL, NULL, 0),
+	(17, 3, 6, 'ending', '仅凭主观认定竞争者偷窃，缺少任何实物证据，老师无法定罪，原画下落不明。', '[]', 0, 50, 50, NULL, NULL, 0),
+	(18, 4, 1, 'start', '# 古董店午夜失窃案
+凌晨古董店老板到店，发现镇店玉佩不见。店内门窗无撬动痕迹，监控午夜时段被人为关闭。
+四位当晚接触店铺人员：
+1. 每晚留宿守店的周大爷；
+2. 刚入职一周的学徒小杨；
+3. 傍晚进店看玉佩的收藏家李先生；
+4. 每日清晨打扫的保洁王阿姨。
+柜台地面残留一小块丝绸布料，玉佩包装盒留在柜台但内部空空。你第一步选择调查方向？', '[
+    {"text":"直接传唤收藏家李先生，怀疑他预谋偷窃","jump_local_id":2},
+    {"text":"先检查柜台丝绸布料，送去检验物证","jump_local_id":3},
+    {"text":"询问守店周大爷，了解夜间店内情况","jump_local_id":4},
+    {"text":"盘问学徒小杨，怀疑内部人员作案","jump_local_id":5}
+]', 0, 50, 50, NULL, NULL, 0),
+	(19, 4, 2, 'process', '收藏家李先生提供完整不在场证明，当晚八点便离开古董店，小区监控全程记录行踪，完全没有作案时间。丝绸布料这条关键线索被你完全忽略，调查缺少核心物证。', '[
+    {"text":"转头去检查柜台遗留的丝绸布料","jump_local_id":3},
+    {"text":"继续盘问学徒小杨深挖疑点","jump_local_id":5},
+    {"text":"认定保洁阿姨趁打扫机会偷走玉佩，直接结案","jump_local_id":6}
+]', 0, 50, 50, NULL, NULL, 0),
+	(20, 4, 3, 'process', '丝绸布料检测结果：是古董店学徒专属工作服内衬布料，只有小杨的工服存在破损缺口，完全匹配柜台残留碎片。周大爷补充证词：昨夜凌晨两点听见仓库有轻微脚步声。', '[
+    {"text":"立刻传唤学徒小杨，结合布料物证对峙","jump_local_id":7},
+    {"text":"再去询问收藏家李先生核对细节","jump_local_id":2},
+    {"text":"单独找守店周大爷深挖夜间细节","jump_local_id":4}
+]', 0, 50, 50, NULL, NULL, 0),
+	(21, 4, 4, 'process', '周大爷称昨晚全程熟睡，没有发现异常，但他承认学徒小杨近期频繁独自留在仓库整理货物。没有实物线索支撑，暂时无法锁定嫌疑人。', '[
+    {"text":"回头检验柜台丝绸布料获取物证","jump_local_id":3},
+    {"text":"直接去找学徒小杨问话","jump_local_id":5},
+    {"text":"怀疑收藏家返程折返作案，重新调查李先生","jump_local_id":2}
+]', 0, 50, 50, NULL, NULL, 0),
+	(22, 4, 5, 'process', '学徒小杨矢口否认偷窃，坚称当晚按时下班离开。缺少布料物证时，他的证词无任何破绽，调查陷入僵局。', '[
+    {"text":"先去柜台提取丝绸布料物证再回来对峙","jump_local_id":3},
+    {"text":"直接判定保洁阿姨作案，终止调查","jump_local_id":6},
+    {"text":"找周大爷核对深夜脚步声线索","jump_local_id":4}
+]', 0, 50, 50, NULL, NULL, 0),
+	(23, 4, 6, 'ending', '仅凭主观猜测锁定保洁阿姨，无任何实物证据，保洁当庭拿出不在场证明。玉佩下落永久成谜，案件搁置。', '[]', 0, 50, 50, NULL, NULL, 0),
+	(24, 4, 7, 'ending', '面对匹配自身工服的丝绸物证，学徒小杨坦白：欠下高额网贷无力偿还，深夜返回店铺撬开柜台取走玉佩，藏匿在出租屋衣柜夹层。人赃并获，案件真相大白。', '[]', 1, 50, 50, NULL, NULL, 0),
+	(25, 5, 1, 'start', '# 山间民宿失踪游客案
+暴雨封山的深夜，入住302房间的女游客彻底失联。民宿出入口昨夜被山洪阻断，所有人无法离开。
+在场嫌疑人：民宿老板、户外向导、同行男伴、独居女旅客。
+302窗台留有少量黑色泥土，房间阳台护栏有轻微划痕。你选择优先调查？', '[
+    {"text":"询问失踪游客的同行男伴，排查情感纠纷动机","jump_local_id":2},
+    {"text":"采集窗台黑色泥土样本，比对后山土质","jump_local_id":3},
+    {"text":"找民宿老板核对昨晚监控记录","jump_local_id":4},
+    {"text":"单独盘问户外向导，他熟悉后山所有小路","jump_local_id":5}
+]', 0, 50, 50, NULL, NULL, 0),
+	(26, 5, 2, 'process', '同行男伴声称两人白天发生争吵，但当晚十点后便各自回房休息，民宿走廊多人能作证。你忽略窗台泥土这条核心物证，缺少指向后山的关键线索。', '[
+    {"text":"转而去采集窗台泥土样本化验","jump_local_id":3},
+    {"text":"查看民宿公共区域监控录像","jump_local_id":4},
+    {"text":"找户外向导询问后山隐蔽小路","jump_local_id":5},
+    {"text":"直接认定男伴因争执挟持游客，上报警方结案","jump_local_id":6}
+]', 0, 50, 50, NULL, NULL, 0),
+	(27, 5, 3, 'process', '泥土化验结果匹配后山废弃山洞区域，只有户外向导知晓山洞隐藏入口。阳台划痕是绳索拖拽重物摩擦留下的痕迹，指向有人将游客带往后山。', '[
+    {"text":"立刻对峙户外向导，出示泥土与划痕物证","jump_local_id":7},
+    {"text":"回头核对民宿老板的监控记录","jump_local_id":4},
+    {"text":"再次询问失踪游客同行男伴补充细节","jump_local_id":2}
+]', 0, 50, 50, NULL, NULL, 0),
+	(28, 5, 4, 'process', '民宿老板的监控在深夜十二点后出现黑屏，老板称线路被暴雨损坏无法修复，无法提供夜间走廊画面，无法获取直接影像线索。', '[
+    {"text":"采集窗台泥土寻找后山线索","jump_local_id":3},
+    {"text":"盘问熟悉后山路线的户外向导","jump_local_id":5},
+    {"text":"继续深挖同行男伴的争吵细节","jump_local_id":2}
+]', 0, 50, 50, NULL, NULL, 0),
+	(29, 5, 5, 'process', '户外向导一开始拒绝透露后山山洞，若没有泥土物证，无法施压攻破他的心理防线，调查停滞不前。', '[
+    {"text":"先提取窗台泥土作为物证再来对峙向导","jump_local_id":3},
+    {"text":"查看民宿老板损坏的监控设备","jump_local_id":4},
+    {"text":"怀疑同行男伴作案，终止调查上报","jump_local_id":6}
+]', 0, 50, 50, NULL, NULL, 0),
+	(30, 5, 6, 'ending', '仅凭争吵矛盾认定同行男伴作案，无任何实物线索支撑。警方进山搜查多日，始终未找到失踪游客踪迹，案件成为悬案。', '[]', 0, 50, 50, NULL, NULL, 0),
+	(31, 5, 7, 'ending', '泥土、护栏划痕双重物证摆在面前，户外向导交代全部真相：他深夜诱骗游客前往后山废弃山洞，意图实施侵害，游客被他软禁在山洞深处，随后警方顺利解救当事人。', '[]', 1, 50, 50, NULL, NULL, 0),
+	(32, 6, 1, 'start', '# 雨夜别墅遗产案
+暴雨整夜冲刷山间别墅，次日清晨，独居富豪陈老先生死于反锁书房内。
+死因：镇静剂过量休克，不属于自杀。
+最重要的【千万遗产遗嘱】凭空消失。
 
--- 初始化管理员密码
-INSERT INTO admin_config (admin_pwd) VALUES ('storygame');
+当晚别墅仅四人留宿：
+1. 大侄子（长期啃老，急需遗产）
+2. 侄女（被死者长期打压，心怀怨恨）
+3. 私人护士（唯一能接触药物的人）
+4. 远房表弟（负责别墅杂物，深夜可自由走动）
 
--- 插入6个故事的基本信息
-INSERT INTO story (story_name, story_desc, is_published) VALUES
-('别墅毒杀案', '经典侦探推理剧本，找出别墅下毒的真凶', 1),
-('美术馆失窃案', '知名油画深夜被盗，四位嫌疑人各有谎言，找出真正的窃贼', 1),
-('校园画室失踪案', '美术社团深夜画室，一幅参赛原画凭空消失，锁定四名社团成员，找出偷画之人', 1),
-('古董店午夜失窃案', '深夜古董店价值百万的玉佩消失，门窗完好，嫌疑人共四人：守店老人、学徒、古玩买家、保洁阿姨，多条线索分散在不同分支，集齐物证才能锁定真凶', 1),
-('山间民宿失踪游客案', '深山民宿一名女游客一夜之间凭空消失，民宿仅有5人留宿，山路昨夜封闭无法下山，多条隐藏线索分布在不同调查分支，错选分支会永久丢失关键证据', 1),
-('雨夜别墅遗产案', '暴雨封山深夜，独居富豪死于书房，遗嘱离奇失踪。四名亲属全员撒谎、互相包庇、制造伪证，存在完美伪真相陷阱，需要深挖隐藏物证才能击穿双层谎言，找到真正幕后凶手。', 1);
+四人全部**有动机、全部撒谎、全部提供假证词**。
+书房门窗完好，无外人闯入痕迹。
+你将从哪里开始调查？', '[
+    {"text":"盘问私人护士，优先排查药物来源","jump_local_id":2},
+    {"text":"搜查书房桌面，寻找药物残留痕迹","jump_local_id":3},
+    {"text":"询问大侄子昨晚行动轨迹","jump_local_id":4},
+    {"text":"单独问话表弟，排查夜间走动记录","jump_local_id":5}
+]', 0, 50, 50, NULL, NULL, 0),
+	(33, 6, 2, 'process', '护士主动交出药物登记表，声称近期药物从未短缺。
+她“好心”提示：侄女昨夜与死者大吵一架，极度怀恨在心。
+证词完美、态度坦然、毫无破绽。
+
+', '[
+    {"text":"采信护士证词，重点审讯侄女","jump_local_id":6},
+    {"text":"反复核对药物出入登记明细","jump_local_id":7},
+    {"text":"暂时搁置，返回书房现场重勘","jump_local_id":3},
+    {"text":"转而调查大侄子财务状况","jump_local_id":4}
+]', 0, 50, 50, NULL, NULL, 0),
+	(34, 6, 3, 'process', '书房桌面干净得过分。
+水杯底部残留**极淡白色药渣**，但药瓶消失。
+书桌角落有一小块**绿色植物汁液痕迹**——别墅院内只有护士房间窗外有该绿植。
+
+', '[
+    {"text":"拿着汁液线索回头对峙护士","jump_local_id":7},
+    {"text":"排查侄女房间是否有药物残留","jump_local_id":6},
+    {"text":"询问表弟是否见过深夜有人出入","jump_local_id":5},
+    {"text":"核查大侄子债务压力","jump_local_id":4}
+]', 0, 50, 50, NULL, NULL, 0),
+	(35, 6, 4, 'process', '大侄子确实身负巨债，极度需要遗产。
+但当晚有外卖小哥凌晨送餐监控，全程不在场作案时间闭环。
+他虽然有动机，但**绝对无作案条件**。
+属于典型烟雾弹嫌疑人。', '[
+    {"text":"排除侄子嫌疑，返回勘查书房","jump_local_id":3},
+    {"text":"继续审问侄女情绪动机","jump_local_id":6},
+    {"text":"核查护士药物记录","jump_local_id":7},
+    {"text":"盘问表弟夜间巡逻细节","jump_local_id":5}
+]', 0, 50, 50, NULL, NULL, 0),
+	(36, 6, 5, 'process', '表弟胆小怕事，全程实话实说：
+深夜1:30，看到“白色身影”从书房走出，身形娇小、走路极轻。
+不是高大的侄子，也不是泼辣的侄女。
+
+', '[
+    {"text":"结合身影线索，重点调查护士","jump_local_id":7},
+    {"text":"再次勘察书房物证残留","jump_local_id":3},
+    {"text":"突击审问侄女心理状态","jump_local_id":6},
+    {"text":"重新核对大侄子不在场证明","jump_local_id":4}
+]', 0, 50, 50, NULL, NULL, 0),
+	(37, 6, 6, 'process', '你认定侄女因积怨下毒杀人。
+侄女心理崩溃，承认吵架、承认怨恨死者。
+她情绪激动、逻辑混乱、极度像凶手。
+
+', '[
+    {"text":"判定侄女凶手，结案","jump_local_id":8},
+    {"text":"冷静下来，回头核查药物来源","jump_local_id":7},
+    {"text":"返回书房重新取证","jump_local_id":3}
+]', 0, 50, 50, NULL, NULL, 0),
+	(38, 6, 7, 'process', '你核对药物明细，发现**一页记录被人为撕毁**。
+结合：
+1. 书房绿植汁液（护士专属）
+2. 深夜娇小白色身影（护士白衣）
+3. 唯一能接触管制镇静剂的人
+三条铁证闭环。
+
+护士终于崩溃坦白：
+她并非临时起意，而是**长期被死者压榨、拖欠薪资、遭受言语羞辱**。
+她深夜给药、销毁药瓶、撕毁记录，**故意栽赃侄女**。
+护士故意诱导你怀疑侄女，制造完美替死鬼。', '[
+    {"text":"整合全部物证，锁定真凶结案","jump_local_id":9}
+]', 0, 50, 50, NULL, NULL, 0),
+	(39, 6, 8, 'ending', '【伪结局 · 误判结案】
+你凭借情绪口供锁定侄女结案。
+数月后，警方技术科复原被撕药物记录，真凶护士落网。
+真正的凶手逍遥法外许久，你被认定推理失误，案件二次翻案，你的侦探履历留下重大污点。', '[]', 0, 50, 50, NULL, NULL, 0),
+	(40, 6, 9, 'ending', '【真结局 · 击穿双层谎言】
+你顶住所有伪证、情绪口供、诱导陷阱，通过微量植物汁液、残缺药单、深夜身影三重铁证，
+识破了护士精心布置的「栽赃替死局」。
+
+本案最精妙的诡计：
+凶手全程坦然配合、主动提供假线索、引导侦探走向错误嫌疑人，
+利用人性直觉与情绪判断，制造完美冤案陷阱。
+
+真相大白，全部疑点闭环，案件完美告破。', '[]', 1, 50, 50, NULL, NULL, 0),
+	(42, 1, 1, 'start', '# 别墅毒杀案 开篇
+深夜私人别墅，富豪倒在书房书桌前，桌上一杯红茶残留毒物。
+管家、妻子、生意伙伴三人都有作案动机。你作为到场侦探，第一步该做什么？', '[{"text":"直接审问富豪妻子，认定她有动机","jump_local_id":3},{"text":"先检查红茶杯残留物，化验毒物","jump_local_id":2}]', 0, 50, 50, NULL, NULL, 0),
+	(43, 1, 2, 'process', '你检测茶杯，杯壁只有富豪指纹，但杯底有微量安眠药粉末。管家承认红茶是他冲泡，但声称无下毒机会。', '[{"text":"搜查管家储物间","jump_local_id":4},{"text":"传唤生意伙伴问话","jump_local_id":5}]', 0, 771, 94, NULL, NULL, 0),
+	(44, 1, 3, 'process', '你直接质问富豪妻子，她情绪激动哭诉长期遭受家暴，但坚决否认下毒，暂时没有找到指向她的物证。', '[{"text":"回头重新查验书房红茶茶杯","jump_local_id":2},{"text":"传唤生意伙伴对峙妻子","jump_local_id":5}]', 0, 26, 467, NULL, NULL, 0),
+	(45, 1, 4, 'ending', '真相揭晓：管家长期被富豪克扣工资，安眠药混合慢性毒药放入红茶，证据完整，推理完全正确！案件告破。', '[]', 1, 469, 347, NULL, NULL, 0),
+	(46, 1, 5, 'ending', '你误将妻子定为凶手，遗漏茶杯毒物关键线索，真正凶手逍遥法外，案件成为悬案。', '[]', 0, 349, 129, NULL, NULL, 0),
+	(47, 7, 1, 'start', '# 新故事
+请开始你的创作...', '[]', 0, 50, 50, NULL, NULL, 0),
+	(48, 8, 1, 'start', '# 新故事
+请开始你的创作...', '[]', 0, 50, 50, NULL, NULL, 0);
+/*!40000 ALTER TABLE "story_page" ENABLE KEYS */;
+
+/*!40103 SET TIME_ZONE=IFNULL(@OLD_TIME_ZONE, 'system') */;
+/*!40101 SET SQL_MODE=IFNULL(@OLD_SQL_MODE, '') */;
+/*!40014 SET FOREIGN_KEY_CHECKS=IFNULL(@OLD_FOREIGN_KEY_CHECKS, 1) */;
+/*!40101 SET CHARACTER_SET_CLIENT=@OLD_CHARACTER_SET_CLIENT */;
+/*!40111 SET SQL_NOTES=IFNULL(@OLD_SQL_NOTES, 1) */;
