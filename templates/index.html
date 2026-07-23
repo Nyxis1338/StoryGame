@@ -6,7 +6,33 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='css/reader.css') }}">
 </head>
 <body class="reader-body">
+    <!-- 挂载点 -->
     <div id="app"></div>
+
+    {% raw %}
+    <!-- Vue 模板 -->
+    <template id="index-template">
+        <div class="reader-container">
+            <h1 class="reader-title">📚 故事库</h1>
+
+            <div class="reader-search-box">
+                <input type="text" v-model="keyword" placeholder="搜索故事名..." @keydown.enter="search">
+                <button @click="search">搜索</button>
+            </div>
+
+            <div v-for="story in stories" :key="story.story_id" class="reader-story-item">
+                <h3><a :href="'/reader/'+story.story_id">{{ story.story_name }}</a></h3>
+                <p>{{ story.story_desc || '暂无简介' }}</p>
+                <span class="date">更新于 {{ formatDate(story.update_time || story.create_time) }}</span>
+            </div>
+
+            <div v-if="loading" class="reader-loading">加载中...</div>
+            <div v-if="!hasMore && stories.length > 0" class="reader-no-more">没有更多故事了</div>
+            <div v-if="!hasMore && stories.length === 0" class="reader-no-more">📭 暂无故事，敬请期待...</div>
+        </div>
+    </template>
+    {% endraw %}
+
     <script src="https://cdn.jsdelivr.net/npm/vue@3/dist/vue.global.js"></script>
     <script src="{{ url_for('static', filename='js/index.js') }}"></script>
 </body>

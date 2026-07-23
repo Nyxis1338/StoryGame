@@ -33,6 +33,18 @@ const app = createApp({
             toastMessage: '',
             toastType: 'success',
             toastTimer: null,
+            optionModalVisible: false,
+            optionText: '',
+            targetPageId: null,
+
+            // 连线编辑
+            currentEdge: null,
+            edgeSourceAnchor: 'right',
+            edgeTargetAnchor: 'left',
+            edgeLabel: '',
+            edgeOptionId: null,
+            edgeConnection: null,  // 引用 jsPlumb 连接对象
+
         };
     },
 
@@ -40,11 +52,11 @@ const app = createApp({
         // ============================================================
         // 页面加载
         // ============================================================
-        loadPage(localId) {
-            StoryAPI.getPage(this.storyId, localId)
+        loadPage(pageId) {
+            StoryAPI.getPage(this.storyId, pageId)
                 .then(data => {
                     this.currentPage = data;
-                    this.currentPage.id = data.id;   // ← 确保 id 是全局主键
+                    this.currentPage.id = data.id;
                     this.hasUnsavedChanges = false;
                 })
                 .catch(err => {
@@ -72,7 +84,7 @@ const app = createApp({
                 content: this.currentPage.content,
                 options: this.currentPage.options,
                 page_type: this.currentPage.page_type,
-                is_true_ending: this.currentPage.is_true_ending
+
             })
             .then(() => {
                 this.saving = false;
@@ -89,68 +101,15 @@ const app = createApp({
             });
         },
 
-        // ============================================================
-        // 选项管理
-        // ============================================================
-        addOption() {
-            if (!this.currentPage) {
-                this.showToast('请先选择一个页面', 'warning');
-                return;
-            }
-            // 安全获取最大节点 ID
-            const nodes = (this.graphData && this.graphData.nodes) || [];
-            const maxId = nodes.reduce((max, n) => Math.max(max, n.id || 0), 0);
-            const newLocalId = maxId + 1;
-
-            // 1. 创建新页面
-            StoryAPI.createPage(this.storyId, {
-                local_page_id: newLocalId,
-                content: '# 新页面\n请编辑内容',
-                options: [],
-                pos_x: 100 + Math.random() * 300,
-                pos_y: 100 + Math.random() * 200
-            })
-            .then(() => {
-                // 2. 更新当前页面的 options
-                this.currentPage.options.push({
-                    text: '新选项',
-                    jump_local_id: newLocalId
-                });
-                // 3. 保存当前页面（更新 options）
-                return StoryAPI.updatePage(this.currentPage.id, {
-                    options: this.currentPage.options
-                });
-            })
-            .then(() => {
-                // 4. 获取新的 edges 并保存（包含新连线）
-                this.saveGraphData();
-                // 5. 刷新图数据
-                this.refreshGraph();
-                this.showToast('✅ 新分支创建成功', 'success');
-            })
-            .catch(err => {
-                console.error('创建分支失败:', err);
-                this.showToast('❌ 创建分支失败', 'error');
-            });
-        },
-
-        removeOption(idx) {
-            if (!this.currentPage) return;
-            this.currentPage.options.splice(idx, 1);
-            this.autoSave();
-        },
-
-        // ============================================================
-        // 页面管理（新增/删除）
-        // ============================================================
         addNewPage() {
             if (!this.currentPage) return;
+            const newPageId = JsPlumbRenderer.getNextAvailablePageId();
             const maxId = JsPlumbRenderer.getMaxNodeId() + 1;
-            const newLocalId = maxId || 1;
+
             StoryAPI.createPage(this.storyId, {
-                local_page_id: newLocalId,
+                page_id: newPageId,           // ✅ 改为 page_id
                 content: '# 新页面\n请编辑内容',
-                options: [],
+                // ❌ 移除 options 字段
                 pos_x: 100 + Math.random() * 200,
                 pos_y: 100 + Math.random() * 200
             })
@@ -160,7 +119,102 @@ const app = createApp({
             })
             .catch(err => {
                 console.error('创建页面失败:', err);
-                this.showToast('❌ 创建失败', 'error');
+                this.showToast('❌ 创建失败: ' + (err.message || '未知错误'), 'error');
+            });
+        },
+
+        // ============================================================
+        // 选项管理
+        // ============================================================
+        addOption() {
+            if (!this.currentPage) {
+                this.showToast('请先选择一个页面', 'warning');
+                return;
+            }
+            this.optionText = '';
+            this.targetPageId = null;
+            this.optionModalVisible = true;
+
+        },
+
+        removeOption(idx) {
+            if (!this.currentPage) return;
+            const opt = this.currentPage.options[idx];
+            const sourcePage = this.currentPage.local_id;
+            const targetPage = opt.jump_local_id;
+            // 删除选项（调用 API）
+            StoryAPI.removeOption(this.storyId, {
+                source_page: sourcePage,
+                target_page: targetPage
+            })
+            .then(() => {
+                // 从本地移除
+                this.currentPage.options.splice(idx, 1);
+                // 刷新图
+                this.refreshGraph();
+                this.showToast('✅ 分支已删除', 'success');
+            })
+            .catch(err => {
+                console.error('删除分支失败:', err);
+                this.showToast('❌ 删除分支失败', 'error');
+            });
+        },
+
+        confirmAddOption() {
+            if (!this.optionText.trim() || !this.targetPageId) {
+                this.showToast('请完整填写选项文字和目标页面ID', 'warning');
+                return;
+            }
+            const targetId = parseInt(this.targetPageId);
+            if (isNaN(targetId) || targetId < 1) {
+                this.showToast('目标页面ID必须是有效的正整数', 'warning');
+                return;
+            }
+
+            // 检查目标页是否存在
+            const existingNode = (this.graphData.nodes || []).find(n => n.id === targetId);
+            if (!existingNode) {
+                // 创建目标页（使用指定的 page_id）
+                StoryAPI.createPage(this.storyId, {
+                    page_id: targetId,
+                    content: '# 新页面\n请编辑内容',
+                    pos_x: 100 + Math.random() * 300,
+                    pos_y: 100 + Math.random() * 200
+                })
+                .then(() => {
+                    // 添加选项
+                    return this.addOptionToCurrentPage(targetId);
+                })
+                .catch(err => {
+                    console.error('创建页面失败:', err);
+                    this.showToast('创建页面失败: ' + err.message, 'error');
+                    this.optionModalVisible = false;
+                });
+            } else {
+                // 直接添加选项
+                this.addOptionToCurrentPage(targetId);
+            }
+        },
+
+        addOptionToCurrentPage(targetId) {
+            return StoryAPI.addOption(this.storyId, {
+                source_page: this.currentPage.local_id,
+                target_page: targetId,
+                option_text: this.optionText.trim(),
+                source_anchor: 'right',
+                target_anchor: 'left'
+            })
+            .then(() => {
+                // 刷新图数据和当前页面
+                this.refreshGraph();
+                this.loadPage(this.currentPage.local_id);
+                this.showToast('✅ 分支添加成功', 'success');
+                this.optionModalVisible = false;
+            })
+            .catch(err => {
+                console.error('添加分支失败:', err);
+                this.showToast('添加分支失败: ' + err.message, 'error');
+                throw err; // 继续抛出，让上层处理
             });
         },
 
@@ -205,7 +259,6 @@ const app = createApp({
         refreshGraph() {
             StoryAPI.getGraph(this.storyId)
                 .then(data => {
-                    // 安全处理，防止 data 为 null/undefined
                     if (!data) data = { nodes: [], edges: [] };
                     if (!data.nodes) data.nodes = [];
                     if (!data.edges) data.edges = [];
@@ -396,7 +449,58 @@ const app = createApp({
                 }
             };
             reader.readAsText(file);
-        }
+        },
+
+        saveEdge() {
+            if (!this.edgeOptionId) return;
+            StoryAPI.updateOption(this.edgeOptionId, {
+                source_anchor: this.edgeSourceAnchor,
+                target_anchor: this.edgeTargetAnchor,
+                option_text: this.edgeLabel
+            })
+            .then(() => {
+                this.showToast('✅ 连线设置已保存', 'success');
+                this.currentEdge = null;
+                this.refreshGraph();  // 刷新图以更新锚点
+            })
+            .catch(err => {
+                console.error('保存连线失败:', err);
+                this.showToast('❌ 保存连线失败', 'error');
+            });
+        },
+
+        deleteEdge() {
+            if (!this.edgeOptionId) return;
+            this.showConfirm(
+                '确认删除',
+                '确定要删除此连线吗？',
+                '删除',
+                '取消',
+                true
+            ).then(confirmed => {
+                if (confirmed) {
+                    // 需要知道 source 和 target 来调用 removeOption（或使用 option_id）
+                    // 我们可以新增一个基于 option_id 的删除接口
+                    // 或者通过 source/target 删除
+                    // 这里我们使用 source/target
+                    StoryAPI.removeOption(this.storyId, {
+                        source_page: this.currentEdge.source,
+                        target_page: this.currentEdge.target
+                    })
+                    .then(() => {
+                        this.showToast('✅ 连线已删除', 'success');
+                        this.currentEdge = null;
+                        this.refreshGraph();
+                    })
+                    .catch(err => {
+                        console.error('删除连线失败:', err);
+                        this.showToast('❌ 删除连线失败', 'error');
+                    });
+                }
+            });
+        },
+
+
     },
 
     mounted() {
@@ -404,6 +508,15 @@ const app = createApp({
         JsPlumbRenderer.init('chart-container', {
             onNodeClick: (nodeId) => {
                 this.loadPage(nodeId);
+                JsPlumbRenderer.highlightNode(nodeId);  // 高亮当前选中的节点
+            },
+            onEdgeClick: (edgeData) => {
+                this.currentEdge = edgeData;
+                this.edgeOptionId = edgeData.option_id;
+                this.edgeSourceAnchor = edgeData.sourceAnchor;
+                this.edgeTargetAnchor = edgeData.targetAnchor;
+                this.edgeLabel = edgeData.label;
+                this.edgeConnection = edgeData.connection;
             },
             onNodeMove: (nodeId, x, y) => {
                 // 节点移动时自动保存图数据（防抖）
@@ -442,7 +555,8 @@ const app = createApp({
                     })
                     .catch(err => {
                         console.error('更新选项失败:', err);
-                        this.showToast('同步连线数据失败', 'error');
+                        console.error('sourceLocalId:', sourceLocalId, 'targetLocalId:', targetLocalId);
+                        this.showToast('同步连线数据失败: ' + err.message, 'error');
                     });
             },
             onLabelChange: (sourceLocalId, targetLocalId, newLabel) => {
@@ -475,111 +589,8 @@ const app = createApp({
         JsPlumbRenderer.destroy && JsPlumbRenderer.destroy();
     },
 
-    template: `
-        <div style="display:flex; flex-direction:column; height:100vh; background:#f0f2f5;">
-            <!-- 导航栏 -->
-            <div style="display:flex; justify-content:space-between; align-items:center; padding:12px 24px; background:white; border-bottom:1px solid #e0e0e0; flex-shrink:0; z-index:100;">
-                <div style="display:flex; align-items:center; gap:12px;">
-                    <h2 style="font-size:18px; margin:0;">📖 {{ storyName || '未命名故事' }}</h2>
-                    <span style="background:#6c757d; color:white; padding:2px 12px; border-radius:30px; font-size:12px;">{{ storyStatus }}</span>
-                </div>
-                <div style="display:flex; align-items:center; gap:8px;">
-                    <button @click="savePage" :disabled="saving" style="background:#1a73e8; color:white; border:none; padding:6px 16px; border-radius:8px; cursor:pointer; font-size:14px;" :style="{opacity: saving ? 0.6 : 1}">{{ saving ? '保存中...' : '💾 保存' }}</button>
-                    <span v-show="saved" style="color:#34a853; font-size:13px;">✅ 已保存</span>
-                    <button @click="refreshPage" style="background:#6c757d; color:white; border:none; padding:6px 14px; border-radius:8px; cursor:pointer; font-size:14px;">🔄 刷新</button>
-                    <button @click="goHome" style="background:#8a7a6a; color:white; border:none; padding:6px 14px; border-radius:8px; cursor:pointer; font-size:14px;">🏠 返回</button>
-                    <button v-if="storyStatus === '草稿'" @click="publishStory" style="background:#28a745; color:white; border:none; padding:6px 16px; border-radius:8px; cursor:pointer; font-size:14px; margin-left:8px;">📤 发布</button>
-                </div>
-            </div>
-
-            <!-- 主内容区 -->
-            <div class="main" ref="mainContainer" style="display:flex; flex:1; overflow:hidden; padding:12px; gap:0;">
-                <!-- 左侧：思维导图 -->
-                <div style="height:100%; background:white; border-radius:16px; box-shadow:0 2px 8px rgba(0,0,0,0.06); overflow:hidden; min-height:400px; position:relative; flex-shrink:0;" :style="{ width: leftWidth + '%' }">
-                    <div id="chart-container" style="width:100%; height:100%;"></div>
-                    <button @click="toggleFullscreen" style="position:absolute; top:12px; right:12px; z-index:10; background:rgba(255,255,255,0.92); border:1px solid #ddd; border-radius:6px; padding:6px 12px; cursor:pointer; font-size:13px; box-shadow:0 2px 8px rgba(0,0,0,0.08);">
-                        {{ isFullscreen ? '⛶ 退出全屏' : '⛶ 全屏' }}
-                    </button>
-                </div>
-
-                <!-- 分隔条 -->
-                <div v-if="leftWidth > 5 && leftWidth < 95"
-                     style="flex: 0 0 6px; background:#e0e0e0; cursor:col-resize; flex-shrink:0; transition:background 0.2s; position:relative; border-radius:3px; margin:0 4px;"
-                     :style="{background: isDragging ? '#1a73e8' : '#e0e0e0'}"
-                     @mousedown="startDrag">
-                    <span style="position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); color:#999; font-size:14px; font-weight:bold;">⋮</span>
-                </div>
-
-                <!-- 右侧：编辑面板 -->
-                <div style="height:100%; background:white; border-radius:16px; box-shadow:0 2px 8px rgba(0,0,0,0.06); padding:24px 28px; overflow-y:auto; min-width:200px; flex:1;" :style="{ width: (100 - leftWidth) + '%' }">
-                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
-                        <span style="font-weight:600; font-size:16px;" v-if="currentPage">编辑第 {{ currentPage.local_id }} 页</span>
-                        <span style="font-weight:600; font-size:16px;" v-else>编辑面板</span>
-                        <div>
-                            <button @click="addNewPage" style="background:#1a73e8; color:white; border:none; padding:4px 12px; border-radius:6px; cursor:pointer; font-size:13px;">➕ 新增子页</button>
-                            <button @click="deleteCurrentPage" style="background:#ea4335; color:white; border:none; padding:4px 12px; border-radius:6px; cursor:pointer; font-size:13px; margin-left:8px;">🗑️ 删除</button>
-                        </div>
-                    </div>
-
-                    <div v-if="currentPage">
-                        <div style="margin-bottom:18px;">
-                            <label style="display:block; font-weight:500; font-size:14px; color:#333; margin-bottom:4px;">正文 (支持Markdown)</label>
-                            <textarea v-model="currentPage.content" @input="autoSave" style="width:100%; padding:10px 14px; border:1px solid #ddd; border-radius:8px; font-size:14px; font-family:inherit; box-sizing:border-box; min-height:120px; resize:vertical;"></textarea>
-                        </div>
-                        <div style="margin-bottom:18px;">
-                            <label style="display:block; font-weight:500; font-size:14px; color:#333; margin-bottom:4px;">页面类型</label>
-                            <select v-model="currentPage.page_type" @change="autoSave" style="width:100%; padding:10px 14px; border:1px solid #ddd; border-radius:8px; font-size:14px; font-family:inherit; box-sizing:border-box;">
-                                <option value="start">起始</option>
-                                <option value="process">过程</option>
-                                <option value="ending">结局</option>
-                            </select>
-                        </div>
-                        <div style="margin-bottom:18px;">
-                            <label style="display:block; font-weight:500; font-size:14px; color:#333; margin-bottom:4px;"><input type="checkbox" v-model="currentPage.is_true_ending" @change="autoSave"> 是正确结局</label>
-                        </div>
-                        <div style="margin-bottom:18px;">
-                            <label style="display:block; font-weight:500; font-size:14px; color:#333; margin-bottom:4px;">分支选项</label>
-                            <div v-for="(opt, idx) in currentPage.options" :key="idx" style="display:flex; gap:8px; align-items:center; background:#f8f9fa; padding:8px 12px; border-radius:8px; margin-bottom:8px;">
-                                <input type="text" v-model="opt.text" placeholder="选项文字" @input="autoSave" style="flex:2; padding:8px 12px; border:1px solid #ddd; border-radius:6px; font-size:14px; box-sizing:border-box;">
-                                <input type="number" v-model.number="opt.jump_local_id" placeholder="跳转页ID" @input="autoSave" style="flex:0.8; padding:8px 12px; border:1px solid #ddd; border-radius:6px; font-size:14px; box-sizing:border-box;">
-                                <button @click="removeOption(idx)" style="background:#ea4335; color:white; border:none; width:28px; height:28px; border-radius:50%; cursor:pointer; font-size:16px; flex-shrink:0;">✕</button>
-                            </div>
-                            <button @click="addOption" style="background:#e8f0fe; color:#1a73e8; border:1px dashed #1a73e8; padding:8px 16px; border-radius:20px; cursor:pointer; font-size:14px;">➕ 添加选项</button>
-                        </div>
-                        <div style="margin-top:10px;">
-                            <button @click="savePage" :disabled="saving" style="background:#1a73e8; color:white; border:none; padding:10px 24px; border-radius:8px; font-weight:500; cursor:pointer; font-size:15px;" :style="{opacity: saving ? 0.6 : 1}">{{ saving ? '保存中...' : '手动保存' }}</button>
-                            <span v-show="saved" style="color:#34a853; font-size:14px; margin-left:12px;">✅ 已保存</span>
-                        </div>
-                    </div>
-                    <div v-else style="color:#999; text-align:center; padding:60px 0; font-size:16px;">
-                        <p>👆 请点击左侧图中的节点开始编辑</p>
-                    </div>
-                </div>
-            </div>
-
-            <!-- 模态框 -->
-            <div v-if="modalVisible" style="position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.5); display:flex; align-items:center; justify-content:center; z-index:9999;">
-                <div style="background:white; border-radius:16px; max-width:420px; width:90%; padding:24px; box-shadow:0 20px 60px rgba(0,0,0,0.3);">
-                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
-                        <h3 style="margin:0; font-size:18px;">{{ modalTitle }}</h3>
-                        <button @click="modalCancel" style="background:none; border:none; font-size:22px; cursor:pointer; color:#999;">✕</button>
-                    </div>
-                    <div style="margin-bottom:20px;">
-                        <p style="margin:0; font-size:15px; color:#555; line-height:1.6;">{{ modalMessage }}</p>
-                    </div>
-                    <div style="display:flex; justify-content:flex-end; gap:10px;">
-                        <button @click="modalCancel" style="padding:8px 24px; border:none; border-radius:8px; font-size:14px; cursor:pointer; background:#f0f0f0; color:#555;">{{ modalCancelText }}</button>
-                        <button @click="modalConfirm" style="padding:8px 24px; border:none; border-radius:8px; font-size:14px; cursor:pointer; background: #1a73e8; color:white;" :style="{background: modalIsDanger ? '#ea4335' : '#1a73e8'}">{{ modalConfirmText }}</button>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Toast -->
-            <div v-if="toastVisible" style="position:fixed; top:30px; left:50%; transform:translateX(-50%); padding:12px 28px; border-radius:12px; color:white; font-size:15px; z-index:10000; box-shadow:0 4px 20px rgba(0,0,0,0.15); background: #34a853;" :style="{background: toastType === 'error' ? '#ea4335' : toastType === 'warning' ? '#fbbc04' : '#34a853', color: toastType === 'warning' ? '#333' : 'white'}">
-                {{ toastMessage }}
-            </div>
-        </div>
-    `
+    // 引用外部模板
+    template: '#creator-template'
 });
 
 app.mount('#app');

@@ -4,9 +4,156 @@
     <meta charset="UTF-8">
     <title>✍️ 创作者工作台</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/creator.css') }}">
+
 </head>
-<body class="creator-body">
+<body>
     <div id="app"></div>
+
+    {% raw %}
+    <template id="creator-template">
+        <div class="app-container">
+            <!-- 侧边栏 -->
+            <div class="sidebar">
+                <div class="logo">✍️ 故事创作</div>
+                <button class="nav-item" :class="{ active: currentView === 'stories' }" @click="currentView = 'stories'">
+                    <span class="icon">📖</span> 故事库
+                </button>
+                <button class="nav-item" :class="{ active: currentView === 'trash' }" @click="currentView = 'trash'">
+                    <span class="icon">🗑️</span> 回收站
+                </button>
+                <button class="nav-item" :class="{ active: currentView === 'settings' }" @click="currentView = 'settings'">
+                    <span class="icon">⚙️</span> 设置
+                </button>
+                <button class="nav-item" :class="{ active: currentView === 'backup' }" @click="currentView = 'backup'">
+                    <span class="icon">💾</span> 数据备份
+                </button>
+                <button class="nav-item logout-btn" @click="logout">
+                    <span class="icon">🚪</span> 退出登录
+                </button>
+                <div class="footer">v1.0 &copy; 2026</div>
+            </div>
+
+            <!-- 主内容区 -->
+            <div class="main-content">
+                <!-- 故事列表 -->
+                <div v-if="currentView === 'stories'">
+                    <div class="creator-header">
+                        <h1>📖 我的故事</h1>
+                        <button @click="createStory" class="btn-primary">➕ 新建故事</button>
+                    </div>
+                    <div class="creator-toolbar">
+                        <button class="filter-btn" :class="{active: filterStatus === 'published'}" @click="setFilter('published')">已发布</button>
+                        
+                        <button class="filter-btn" :class="{active: filterStatus === 'draft'}" @click="setFilter('draft')">草稿</button>
+                        <button class="filter-btn" :class="{active: filterStatus === 'all'}" @click="setFilter('all')">全部</button>
+                        <input type="text" class="search-input" v-model="keyword" placeholder="搜索故事名..." @keydown.enter="search">
+                        <button @click="search" class="btn-primary" style="padding:6px 16px; border-radius:20px;">搜索</button>
+                    </div>
+                    <div class="creator-grid">
+                        <div v-for="story in stories" :key="story.story_id" class="creator-card">
+                            <div>
+                                <h3><a :href="'/creator/'+story.story_id">{{ story.story_name }}</a></h3>
+                                <p class="desc">{{ story.story_desc || '暂无简介' }}</p>
+                            </div>
+                            <div class="meta">
+                                <span class="status-badge" :class="story.is_published ? 'published' : 'draft'">
+                                    {{ story.is_published ? '已发布' : '草稿' }}
+                                </span>
+                                <span>{{ formatDate(story.update_time || story.create_time) }}</span>
+                                <button class="btn-danger" @click="deleteStory(story.story_id)">删除</button>
+                                <button class="btn-edit" @click="editStory(story)">✏️</button>
+                            </div>
+                        </div>
+                    </div>
+                    <div v-if="loading" class="creator-loading">加载中...</div>
+                    <div v-if="!hasMore && stories.length > 0" class="creator-no-more">没有更多了</div>
+                    <div v-if="!hasMore && stories.length === 0" class="creator-no-more">暂无故事，点击「新建故事」开始创作</div>
+                </div>
+
+                <!-- 回收站 -->
+                <div v-if="currentView === 'trash'">
+
+                    <h1>🗑️ 回收站</h1>
+                    <div v-if="trashLoading" class="creator-loading">加载中...</div>
+                    <div v-else-if="trashItems.length === 0" class="creator-no-more">回收站为空</div>
+                    <div v-else>
+                        <div v-for="story in trashItems" :key="story.story_id" class="creator-card">
+                            <div>
+                                <h3>{{ story.story_name }}</h3>
+                                <p class="desc">{{ story.story_desc || '暂无简介' }}</p>
+                            </div>
+                            <div class="meta">
+                                <span>删除于 {{ formatDate(story.delete_time) }}</span>
+                                <button class="btn-restore" @click="restoreStory(story.story_id)">♻️ 恢复</button>
+                                <button class="btn-danger" @click="permanentDeleteStory(story.story_id)">🔥 永久删除</button>
+                            </div>
+                        </div>
+                    </div>
+
+                </div>
+
+                <!-- 设置 -->
+                <div v-if="currentView === 'settings'">
+                    <div class="settings-panel">
+                        <h1>⚙️ 修改密码</h1>
+                        <p class="subtitle">修改管理员登录密码</p>
+
+                        <div class="form-group">
+                            <label>当前密码</label>
+                            <input type="password" v-model="oldPassword" class="form-control" placeholder="请输入当前密码">
+                        </div>
+                        <div class="form-group">
+                            <label>新密码</label>
+                            <input type="password" v-model="newPassword" class="form-control" placeholder="请输入新密码（至少6位）">
+                        </div>
+                        <div class="form-group">
+                            <label>确认新密码</label>
+                            <input type="password" v-model="confirmPassword" class="form-control" placeholder="请再次输入新密码">
+                        </div>
+
+                        <button class="btn-primary btn-block" @click="changePassword" :disabled="loading">
+                            {{ loading ? '修改中...' : '确认修改' }}
+                        </button>
+
+                        <p v-if="error" class="error-text">{{ error }}</p>
+                        <p v-if="success" class="success-text">{{ success }}</p>
+                    </div>
+                </div>
+
+                <!-- 备份 -->
+                <div v-if="currentView === 'backup'">
+                    <h1>💾 数据备份</h1>
+                    <p>导出所有故事数据为 JSON 文件，或从 JSON 文件导入恢复数据。</p>
+                    <div style="margin-top:20px;display:flex;gap:12px;">
+                        <button class="btn-primary" @click="exportBackup">📤 导出数据</button>
+                        <input type="file" id="importFile" accept=".json" style="display:none" @change="importBackup" />
+                        <button class="btn-primary" @click="document.getElementById('importFile').click()">📥 导入数据</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 编辑故事模态框 -->
+        <div v-if="editModalVisible" class="modal-overlay" @click.self="editModalVisible = false">
+            <div class="modal-box">
+                <h3>编辑故事信息</h3>
+                <div class="form-group">
+                    <label>故事名称</label>
+                    <input type="text" v-model="editingStory.story_name" class="form-control">
+                </div>
+                <div class="form-group">
+                    <label>故事简介</label>
+                    <textarea v-model="editingStory.story_desc" class="form-control" rows="3"></textarea>
+                </div>
+                <div class="buttons">
+                    <button class="btn-cancel" @click="editModalVisible = false">取消</button>
+                    <button class="btn-primary" @click="saveStoryEdit">保存</button>
+                </div>
+            </div>
+        </div>
+    </template>
+    {% endraw %}
+
     <script src="https://cdn.jsdelivr.net/npm/vue@3/dist/vue.global.js"></script>
     <script src="{{ url_for('static', filename='js/creator_index.js') }}"></script>
 </body>

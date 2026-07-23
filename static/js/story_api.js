@@ -1,47 +1,100 @@
+// story_api.js (async/await 版本)
 
 const StoryAPI = {
-    // 获取页面详情
-    getPage(storyId, localId) {
-        return fetch(`/api/page/${storyId}/${localId}?mode=edit`).then(res => res.json());
+    async getPage(storyId, pageId) {
+        const res = await fetch(`/api/page/${storyId}/${pageId}?mode=edit`);
+        if (!res.ok) throw new Error(`获取页面失败 (${res.status})`);
+        return res.json();
     },
-    // 更新页面（草稿）
-    updatePage(pageId, data) {
-        return fetch(`/api/page/${pageId}`, {
+
+    async updatePage(globalId, data) {
+        // data 只包含 content, page_type, 等，不再包含 options
+        const res = await fetch(`/api/page/${globalId}`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(data)
-        }).then(res => res.json());
+        });
+        if (!res.ok) throw new Error(`更新页面失败 (${res.status})`);
+        return res.json();
     },
-    // 创建新页面
-    createPage(storyId, data) {
-        return fetch(`/api/page/${storyId}`, {
+
+    async createPage(storyId, data) {
+        // data 包含 page_id, content, options? 但选项由后续单独添加
+        const res = await fetch(`/api/page/${storyId}`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(data)
-        }).then(res => res.json());
+        });
+        if (!res.ok) throw new Error(`创建页面失败 (${res.status})`);
+        return res.json();
     },
-    // 删除页面
-    deletePage(pageId) {
-        return fetch(`/api/page/${pageId}`, { method: 'DELETE' }).then(res => res.json());
+
+    async deletePage(globalId) {
+        const res = await fetch(`/api/page/${globalId}`, { method: 'DELETE' });
+        if (!res.ok) {
+            const err = await res.json();
+            throw new Error(err.error || `删除页面失败 (${res.status})`);
+        }
+        return res.json();
     },
-    // 获取图数据
-    getGraph(storyId) {
-        return fetch(`/api/graph/${storyId}?mode=edit`).then(res => res.json());
+
+    async getGraph(storyId) {
+        const res = await fetch(`/api/graph/${storyId}?mode=edit`);
+        if (!res.ok) throw new Error(`获取图数据失败 (${res.status})`);
+        return res.json();
     },
-    // 保存图数据（节点位置、连线）
-    saveGraph(storyId, graphData) {
-        return fetch(`/api/story/${storyId}/graph`, {
+
+    async saveGraph(storyId, graphData) {
+        const res = await fetch(`/api/story/${storyId}/graph`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(graphData)
-        }).then(res => res.json());
+        });
+        if (!res.ok) throw new Error(`保存图数据失败 (${res.status})`);
+        return res.json();
     },
-    // 获取故事状态
-    getStoryStatus(storyId) {
-        return fetch(`/api/story/${storyId}`).then(res => res.json());
+
+    async getStoryStatus(storyId) {
+        const res = await fetch(`/api/story/${storyId}`);
+        if (!res.ok) throw new Error(`获取故事状态失败 (${res.status})`);
+        return res.json();
     },
-    // 发布故事
-    publishStory(storyId) {
-        return fetch(`/api/story/${storyId}/publish`, { method: 'POST' }).then(res => res.json());
+
+    async publishStory(storyId) {
+        const res = await fetch(`/api/story/${storyId}/publish`, { method: 'POST' });
+        if (!res.ok) throw new Error(`发布失败 (${res.status})`);
+        return res.json();
+    },
+
+    // 新增：添加选项
+    async addOption(storyId, data) {
+        const res = await fetch(`/api/story/${storyId}/option`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data)
+        });
+        if (!res.ok) throw new Error(`添加选项失败 (${res.status})`);
+        return res.json();
+    },
+
+    // 新增：删除选项
+    async removeOption(storyId, data) {
+        const res = await fetch(`/api/story/${storyId}/option`, {
+            method: 'DELETE',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data)
+        });
+        if (!res.ok) throw new Error(`删除选项失败 (${res.status})`);
+        return res.json();
+    },
+
+    async updateOption(optionId, data) {
+        const res = await fetch(`/api/option/${optionId}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data)
+        });
+        if (!res.ok) throw new Error(`更新选项失败 (${res.status})`);
+        return res.json();
     }
 };

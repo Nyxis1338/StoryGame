@@ -9,6 +9,168 @@
 <body class="creator-body">
     <div id="app" data-story-id="{{ story_id }}"></div>
 
+    <!-- ===== 模板已迁移至此处 ===== -->
+    {% raw %}
+    <template id="creator-template">
+
+        <div style="display:flex; flex-direction:column; height:100vh; background:#f0f2f5;">
+            <!-- 导航栏 -->
+            <div style="display:flex; justify-content:space-between; align-items:center; padding:12px 24px; background:white; border-bottom:1px solid #e0e0e0; flex-shrink:0; z-index:100;">
+                <div style="display:flex; align-items:center; gap:12px;">
+                    <h2 style="font-size:18px; margin:0;">📖 {{ storyName || '未命名故事' }}</h2>
+                    <span style="background:#6c757d; color:white; padding:2px 12px; border-radius:30px; font-size:12px;">{{ storyStatus }}</span>
+                </div>
+                <div style="display:flex; align-items:center; gap:8px;">
+                    <button @click="savePage" :disabled="saving" style="background:#1a73e8; color:white; border:none; padding:6px 16px; border-radius:8px; cursor:pointer; font-size:14px;" :style="{opacity: saving ? 0.6 : 1}">{{ saving ? '保存中...' : '💾 保存' }}</button>
+                    <span v-show="saved" style="color:#34a853; font-size:13px;">✅ 已保存</span>
+                    <button @click="refreshPage" style="background:#6c757d; color:white; border:none; padding:6px 14px; border-radius:8px; cursor:pointer; font-size:14px;">🔄 刷新</button>
+                    <button @click="goHome" style="background:#8a7a6a; color:white; border:none; padding:6px 14px; border-radius:8px; cursor:pointer; font-size:14px;">🏠 返回</button>
+                    <button v-if="storyStatus === '草稿'" @click="publishStory" style="background:#28a745; color:white; border:none; padding:6px 16px; border-radius:8px; cursor:pointer; font-size:14px; margin-left:8px;">📤 发布</button>
+                </div>
+            </div>
+
+            <!-- 主内容区 -->
+            <div class="main" ref="mainContainer" style="display:flex; flex:1; overflow:hidden; padding:12px; gap:0;">
+                <!-- 左侧：思维导图 -->
+                <div style="height:100%; background:white; border-radius:16px; box-shadow:0 2px 8px rgba(0,0,0,0.06); overflow:hidden; min-height:400px; position:relative; flex-shrink:0;" :style="{ width: leftWidth + '%' }">
+                    <div id="chart-container" style="width:100%; height:100%;"></div>
+                    <button @click="toggleFullscreen" style="position:absolute; top:12px; right:12px; z-index:10; background:rgba(255,255,255,0.92); border:1px solid #ddd; border-radius:6px; padding:6px 12px; cursor:pointer; font-size:13px; box-shadow:0 2px 8px rgba(0,0,0,0.08);">
+                        {{ isFullscreen ? '⛶ 退出全屏' : '⛶ 全屏' }}
+                    </button>
+                </div>
+
+                <!-- 分隔条 -->
+                <div v-if="leftWidth > 5 && leftWidth < 95"
+                     style="flex: 0 0 6px; background:#e0e0e0; cursor:col-resize; flex-shrink:0; transition:background 0.2s; position:relative; border-radius:3px; margin:0 4px;"
+                     :style="{background: isDragging ? '#1a73e8' : '#e0e0e0'}"
+                     @mousedown="startDrag">
+                    <span style="position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); color:#999; font-size:14px; font-weight:bold;">⋮</span>
+                </div>
+
+                <!-- 右侧：编辑面板 -->
+                <div style="height:100%; background:white; border-radius:16px; box-shadow:0 2px 8px rgba(0,0,0,0.06); padding:24px 28px; overflow-y:auto; min-width:200px; flex:1;" :style="{ width: (100 - leftWidth) + '%' }">
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+                        <span style="font-weight:600; font-size:16px;" v-if="currentPage">编辑第 {{ currentPage.local_id }} 页</span>
+                        <span style="font-weight:600; font-size:16px;" v-else>编辑面板</span>
+                        <div>
+                            <button @click="addNewPage" style="background:#1a73e8; color:white; border:none; padding:4px 12px; border-radius:6px; cursor:pointer; font-size:13px;">➕ 新增子页</button>
+                            <button @click="deleteCurrentPage" style="background:#ea4335; color:white; border:none; padding:4px 12px; border-radius:6px; cursor:pointer; font-size:13px; margin-left:8px;">🗑️ 删除</button>
+                        </div>
+                    </div>
+
+                    <div v-if="currentPage">
+                        <div style="margin-bottom:18px;">
+                            <label style="display:block; font-weight:500; font-size:14px; color:#333; margin-bottom:4px;">正文 (支持Markdown)</label>
+                            <textarea v-model="currentPage.content" @input="autoSave" style="width:100%; padding:10px 14px; border:1px solid #ddd; border-radius:8px; font-size:14px; font-family:inherit; box-sizing:border-box; min-height:120px; resize:vertical;"></textarea>
+                        </div>
+                        <div style="margin-bottom:18px;">
+                            <label style="display:block; font-weight:500; font-size:14px; color:#333; margin-bottom:4px;">页面类型</label>
+                            <select v-model="currentPage.page_type" @change="autoSave" style="width:100%; padding:10px 14px; border:1px solid #ddd; border-radius:8px; font-size:14px; font-family:inherit; box-sizing:border-box;">
+                                <option value="process">过程</option>
+                                <option value="true_ending">正确结局</option>
+                                <option value="false_ending">错误结局</option>
+                            </select>
+                        </div>
+
+                        <div style="margin-bottom:18px;">
+                            <label style="display:block; font-weight:500; font-size:14px; color:#333; margin-bottom:4px;">分支选项</label>
+                            <div v-for="(opt, idx) in currentPage.options" :key="idx" style="display:flex; gap:8px; align-items:center; background:#f8f9fa; padding:8px 12px; border-radius:8px; margin-bottom:8px;">
+                                <input type="text" v-model="opt.text" placeholder="选项文字" @input="autoSave" style="flex:1; padding:8px 12px; border:1px solid #ddd; border-radius:6px; font-size:14px; box-sizing:border-box;">
+                                <input type="number" v-model.number="opt.jump_local_id" placeholder="跳转页ID" @input="autoSave" style="width:70px; flex-shrink:0; padding:8px 12px; border:1px solid #ddd; border-radius:6px; font-size:14px; box-sizing:border-box;">
+                                <button @click="removeOption(idx)" style="background:#ea4335; color:white; border:none; width:28px; height:28px; border-radius:50%; cursor:pointer; font-size:16px; flex-shrink:0;">✕</button>
+                            </div>
+                            <button @click="addOption" style="background:#e8f0fe; color:#1a73e8; border:1px dashed #1a73e8; padding:8px 16px; border-radius:20px; cursor:pointer; font-size:14px;">➕ 添加选项</button>
+                        </div>
+                        <div style="margin-top:10px;">
+                            <button @click="savePage" :disabled="saving" style="background:#1a73e8; color:white; border:none; padding:10px 24px; border-radius:8px; font-weight:500; cursor:pointer; font-size:15px;" :style="{opacity: saving ? 0.6 : 1}">{{ saving ? '保存中...' : '手动保存' }}</button>
+                            <span v-show="saved" style="color:#34a853; font-size:14px; margin-left:12px;">✅ 已保存</span>
+                        </div>
+                    </div>
+                    <div v-else style="color:#999; text-align:center; padding:60px 0; font-size:16px;">
+                        <p>👆 请点击左侧图中的节点开始编辑</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 模态框 -->
+            <div v-if="modalVisible" style="position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.5); display:flex; align-items:center; justify-content:center; z-index:9999;">
+                <div style="background:white; border-radius:16px; max-width:420px; width:90%; padding:24px; box-shadow:0 20px 60px rgba(0,0,0,0.3);">
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+                        <h3 style="margin:0; font-size:18px;">{{ modalTitle }}</h3>
+                        <button @click="modalCancel" style="background:none; border:none; font-size:22px; cursor:pointer; color:#999;">✕</button>
+                    </div>
+                    <div style="margin-bottom:20px;">
+                        <p style="margin:0; font-size:15px; color:#555; line-height:1.6;">{{ modalMessage }}</p>
+                    </div>
+                    <div style="display:flex; justify-content:flex-end; gap:10px;">
+                        <button @click="modalCancel" style="padding:8px 24px; border:none; border-radius:8px; font-size:14px; cursor:pointer; background:#f0f0f0; color:#555;">{{ modalCancelText }}</button>
+                        <button @click="modalConfirm" style="padding:8px 24px; border:none; border-radius:8px; font-size:14px; cursor:pointer; background: #1a73e8; color:white;" :style="{background: modalIsDanger ? '#ea4335' : '#1a73e8'}">{{ modalConfirmText }}</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Toast -->
+            <div v-if="toastVisible" style="position:fixed; top:30px; left:50%; transform:translateX(-50%); padding:12px 28px; border-radius:12px; color:white; font-size:15px; z-index:10000; box-shadow:0 4px 20px rgba(0,0,0,0.15); background: #34a853;" :style="{background: toastType === 'error' ? '#ea4335' : toastType === 'warning' ? '#fbbc04' : '#34a853', color: toastType === 'warning' ? '#333' : 'white'}">
+                {{ toastMessage }}
+            </div>
+
+            <!-- 添加分支模态框 -->
+            <div v-if="optionModalVisible" style="position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.5); display:flex; align-items:center; justify-content:center; z-index:9999;">
+                <div style="background:white; padding:24px; border-radius:12px; max-width:400px; width:90%;">
+                    <h3 style="margin-top:0;">添加分支</h3>
+                    <div style="margin-bottom:12px;">
+                        <label style="display:block; font-weight:500; font-size:14px; margin-bottom:4px;">选项文字</label>
+                        <input type="text" v-model="optionText" placeholder="输入分支文字" style="width:100%; padding:8px; border:1px solid #ccc; border-radius:4px;">
+                    </div>
+                    <div style="margin-bottom:12px;">
+                        <label style="display:block; font-weight:500; font-size:14px; margin-bottom:4px;">目标页面ID</label>
+                        <input type="number" v-model.number="targetPageId" placeholder="输入目标页ID（如2）" style="width:100%; padding:8px; border:1px solid #ccc; border-radius:4px;">
+                        <div style="font-size:12px; color:#888; margin-top:4px;">💡 如果ID不存在，将自动创建新页面</div>
+                    </div>
+                    <div style="display:flex; justify-content:flex-end; gap:8px;">
+                        <button @click="optionModalVisible = false" style="padding:6px 16px; background:#f0f0f0; border:none; border-radius:4px; cursor:pointer;">取消</button>
+                        <button @click="confirmAddOption" style="padding:6px 16px; background:#1a73e8; color:white; border:none; border-radius:4px; cursor:pointer;">确认添加</button>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+
+        <!-- 连线设置 -->
+        <div v-if="currentEdge" style="margin-top:20px; border-top:2px solid #e0e0e0; padding-top:16px;">
+            <h4 style="margin:0 0 10px;">🔗 连线设置</h4>
+            <div style="margin-bottom:10px;">
+                <label style="display:block; font-weight:500; font-size:13px; color:#555;">源锚点</label>
+                <select v-model="edgeSourceAnchor" style="width:100%; padding:6px; border:1px solid #ccc; border-radius:4px;">
+                    <option value="top">上</option>
+                    <option value="bottom">下</option>
+                    <option value="left">左</option>
+                    <option value="right">右</option>
+                </select>
+            </div>
+            <div style="margin-bottom:10px;">
+                <label style="display:block; font-weight:500; font-size:13px; color:#555;">目标锚点</label>
+                <select v-model="edgeTargetAnchor" style="width:100%; padding:6px; border:1px solid #ccc; border-radius:4px;">
+                    <option value="top">上</option>
+                    <option value="bottom">下</option>
+                    <option value="left">左</option>
+                    <option value="right">右</option>
+                </select>
+            </div>
+            <div style="margin-bottom:10px;">
+                <label style="display:block; font-weight:500; font-size:13px; color:#555;">标签文字</label>
+                <input type="text" v-model="edgeLabel" style="width:100%; padding:6px; border:1px solid #ccc; border-radius:4px;">
+            </div>
+            <div style="display:flex; gap:8px;">
+                <button @click="saveEdge" class="btn-primary" style="flex:1;">💾 保存锚点</button>
+                <button @click="deleteEdge" class="btn-danger" style="flex:1;">🗑️ 删除连线</button>
+            </div>
+        </div>
+    
+
+    </template>
+    {% endraw %}
+
     <!-- ===== 1. 先加载 Vue 核心库 ===== -->
     <script src="https://cdn.jsdelivr.net/npm/vue@3/dist/vue.global.js"></script>
 

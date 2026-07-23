@@ -3,16 +3,36 @@ const { createApp } = Vue;
 createApp({
     data() {
         return {
+            // 当前视图
+            currentView: 'stories', // stories | trash | settings | backup
+
+            // 故事列表
             stories: [],
             page: 1,
             perPage: 10,
             loading: false,
             hasMore: true,
             keyword: '',
-            filterStatus: 'all'
+            filterStatus: 'published',
+
+            // 回收站
+            trashItems: [],
+            trashLoading: false,
+
+            // 设置
+            oldPassword: '',
+            newPassword: '',
+            confirmPassword: '',
+            passwordMessage: '',
+            passwordError: '',
+
+            // 编辑故事模态框
+            editModalVisible: false,
+            editingStory: { story_id: null, story_name: '', story_desc: '' },
         };
     },
     methods: {
+        // ---------- 故事列表 ----------
         fetchStories(reset = false) {
             if (this.loading) return;
             if (reset) {
@@ -26,6 +46,8 @@ createApp({
             let url = `/api/stories?page=${this.page}&per_page=${this.perPage}`;
             if (this.filterStatus !== 'all') {
                 url += `&status=${this.filterStatus}`;
+            } else {
+                url += `&status=all`;   // 明确传递 all
             }
             if (this.keyword.trim()) {
                 url += `&q=${encodeURIComponent(this.keyword.trim())}`;
@@ -70,28 +92,116 @@ createApp({
                 });
         },
 
-        logout() {
-            fetch('/api/auth/logout', { method: 'POST' })
-                .then(() => {
-                    window.location.href = '/login';
+        // ---------- 编辑故事 ----------
+        editStory(story) {
+            this.editingStory = {
+                story_id: story.story_id,
+                story_name: story.story_name,
+                story_desc: story.story_desc || ''
+            };
+            this.editModalVisible = true;
+        },
+
+        saveStoryEdit() {
+            const data = {
+                story_name: this.editingStory.story_name,
+                story_desc: this.editingStory.story_desc
+            };
+            fetch(`/api/story/${this.editingStory.story_id}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data)
+            })
+            .then(res => res.json())
+            .then(() => {
+                this.editModalVisible = false;
+                // 刷新列表
+                this.fetchStories(true);
+                alert('✅ 故事信息已更新');
+            })
+            .catch(err => {
+                console.error('更新失败:', err);
+                alert('❌ 更新失败，请重试');
+            });
+        },
+
+        // ---------- 回收站 ----------
+        fetchTrash() {
+            this.trashLoading = true;
+            fetch('/api/trash')
+                .then(res => res.json())
+                .then(data => {
+                    this.trashItems = data;
+                    this.trashLoading = false;
+                })
+                .catch(() => {
+                    this.trashLoading = false;
                 });
         },
 
-        formatDate(iso) {
-            if (!iso) return '未知';
-            return new Date(iso).toLocaleDateString('zh-CN');
+        restoreStory(id) {
+            if (!confirm('确定恢复此故事吗？')) return;
+            fetch(`/api/story/${id}/restore`, { method: 'POST' })
+                .then(() => {
+                    alert('✅ 恢复成功');
+                    this.fetchTrash();
+                    this.fetchStories(true);
+                });
         },
 
-        // ============================================================
-        // 导入导出功能（与模板中按钮绑定）
-        // ============================================================
+        permanentDeleteStory(id) {
+            if (!confirm('⚠️ 确定永久删除此故事吗？\n此操作不可恢复！')) return;
+            fetch(`/api/story/${id}/permanent`, { method: 'DELETE' })
+                .then(() => {
+                    alert('✅ 已永久删除');
+                    this.fetchTrash();
+                });
+        },
+
+        // ---------- 设置 ----------
+        changePassword() {
+            if (!this.oldPassword || !this.newPassword || !this.confirmPassword) {
+                this.passwordError = '请完整填写所有字段';
+                return;
+            }
+            if (this.newPassword.length < 6) {
+                this.passwordError = '新密码至少6位';
+                return;
+            }
+            if (this.newPassword !== this.confirmPassword) {
+                this.passwordError = '两次输入的新密码不一致';
+                return;
+            }
+            this.passwordError = '';
+            this.passwordMessage = '';
+
+            fetch('/api/auth/change_password', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    old_password: this.oldPassword,
+                    new_password: this.newPassword
+                })
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    this.passwordMessage = '✅ 密码修改成功！';
+                    this.oldPassword = '';
+                    this.newPassword = '';
+                    this.confirmPassword = '';
+                } else {
+                    this.passwordError = data.error || '修改失败';
+                }
+            })
+            .catch(() => {
+                this.passwordError = '网络错误，请重试';
+            });
+        },
+
+        // ---------- 备份 ----------
         exportBackup() {
             window.location.href = '/api/backup/export';
-        },
-
-        // 触发文件选择器
-        triggerFileInput() {
-            document.getElementById('importFile').click();
         },
 
         importBackup(event) {
@@ -114,6 +224,33 @@ createApp({
                 }
             };
             reader.readAsText(file);
+        },
+
+        // ---------- 通用 ----------
+        logout() {
+            fetch('/api/auth/logout', { method: 'POST' })
+                .then(() => {
+                    window.location.href = '/login';
+                });
+        },
+
+        formatDate(iso) {
+            if (!iso) return '未知';
+            return new Date(iso).toLocaleDateString('zh-CN');
+        },
+
+        // ---------- 监听导航切换 ----------
+        handleViewChange() {
+            if (this.currentView === 'trash') {
+                this.fetchTrash();
+            }
+        }
+    },
+    watch: {
+        currentView(newVal) {
+            if (newVal === 'trash') {
+                this.fetchTrash();
+            }
         }
     },
     mounted() {
@@ -125,48 +262,5 @@ createApp({
             }
         });
     },
-    template: `
-        <div class="creator-dashboard">
-            <div class="creator-header">
-                <h1>✍️ 我的故事</h1>
-                <div style="display:flex; gap:12px; align-items:center;">
-                    <button @click="createStory" class="btn-primary">➕ 新建故事</button>
-                    <button @click="logout" style="color:#ea4335; background:transparent; border:1px solid #ea4335; padding:6px 12px; border-radius:6px; cursor:pointer;">🚪 退出</button>
-                </div>
-            </div>
-
-            <div class="creator-toolbar">
-                <button class="filter-btn" :class="{active: filterStatus === 'all'}" @click="setFilter('all')">全部</button>
-                <button class="filter-btn" :class="{active: filterStatus === 'draft'}" @click="setFilter('draft')">草稿</button>
-                <button class="filter-btn" :class="{active: filterStatus === 'published'}" @click="setFilter('published')">已发布</button>
-                <input type="text" class="search-input" v-model="keyword" placeholder="搜索故事名..." @keydown.enter="search">
-                <button @click="search" class="btn-primary" style="padding:6px 16px; border-radius:20px;">搜索</button>
-            </div>
-            <div class="creator-toolbar">
-                <button class="btn-primary" @click="exportBackup">📤 导出数据</button>
-                <input type="file" id="importFile" accept=".json" style="display:none" @change="importBackup" />
-                <button class="btn-primary" @click="triggerFileInput">📥 导入数据</button>
-             </div>
-
-            <div class="creator-grid">
-                <div v-for="story in stories" :key="story.story_id" class="creator-card">
-                    <div>
-                        <h3><a :href="'/creator/'+story.story_id">{{ story.story_name }}</a></h3>
-                        <p class="desc">{{ story.story_desc || '暂无简介' }}</p>
-                    </div>
-                    <div class="meta">
-                        <span class="status-badge" :class="story.is_published ? 'published' : 'draft'">
-                            {{ story.is_published ? '已发布' : '草稿' }}
-                        </span>
-                        <span>{{ formatDate(story.update_time || story.create_time) }}</span>
-                        <button class="btn-danger" @click="deleteStory(story.story_id)">删除</button>
-                    </div>
-                </div>
-            </div>
-
-            <div v-if="loading" class="creator-loading">加载中...</div>
-            <div v-if="!hasMore && stories.length > 0" class="creator-no-more">没有更多了</div>
-            <div v-if="!hasMore && stories.length === 0" class="creator-no-more">暂无故事，点击「新建故事」开始创作</div>
-        </div>
-    `
+    template: '#creator-template'
 }).mount('#app');

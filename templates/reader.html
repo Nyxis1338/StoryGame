@@ -4,12 +4,52 @@
     <meta charset="UTF-8">
     <title>📖 阅读故事</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/reader.css') }}">
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 </head>
 <body class="reader-body">
     <div id="app" data-story-id="{{ story_id }}"></div>
+
+    {% raw %}
+    <template id="reader-template">
+        <div class="reader-container">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
+                <h1 class="reader-title" style="margin-bottom:0;">📖 {{ storyName || '故事阅读' }}</h1>
+                <button @click="goHome" style="
+                    background: #8a7a6a;
+                    color: white;
+                    border: none;
+                    padding: 8px 20px;
+                    border-radius: 30px;
+                    cursor: pointer;
+                    font-size: 0.95rem;
+                    font-family: inherit;
+                    transition: background 0.2s;
+                    flex-shrink: 0;
+                " onmouseover="this.style.background='#6a5a4a'" onmouseout="this.style.background='#8a7a6a'">
+                    📚 返回列表
+                </button>
+            </div>
+
+            <div class="reader-content" v-html="currentContent"></div>
+
+            <div class="reader-options">
+                <button v-for="(opt, idx) in currentOptions" :key="idx" @click="chooseOption(opt)">
+                    {{ opt.text }}
+                </button>
+            </div>
+
+            <div v-if="isEnding" class="reader-ending">
+                {{ isTrueEnding ? '🎉 恭喜你完成了正确的推理！' : '📖 故事结束' }}
+            </div>
+
+            <button v-if="history.length > 0" class="reader-back-btn" @click="goBack">
+                ⬅️ 返回上一步
+            </button>
+        </div>
+    </template>
+    {% endraw %}
+
     <script src="https://cdn.jsdelivr.net/npm/vue@3/dist/vue.global.js"></script>
-    <!-- ✅ 添加 marked.js 用于渲染 Markdown -->
-    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <script src="{{ url_for('static', filename='js/reader.js') }}"></script>
 </body>
 </html>

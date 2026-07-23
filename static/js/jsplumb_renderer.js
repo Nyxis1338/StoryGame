@@ -8,6 +8,8 @@ var JsPlumbRenderer = (function() {
     var onOptionChangeCallback = null;
     var onLabelChangeCallback = null;
     var selectedEndpoint = null;   // 记录当前选中的端点
+    var selectedNodeId = null;
+    var onEdgeClickCallback = null;
 
     // 初始化
     function init(containerId, callbacks) {
@@ -36,6 +38,35 @@ var JsPlumbRenderer = (function() {
         onOptionChangeCallback = callbacks.onOptionChange || null;
         onLabelChangeCallback = callbacks.onLabelChange || null;
         onNodeClickCallback = callbacks.onNodeClick || null;
+        onEdgeClickCallback = callbacks.onEdgeClick || null;
+
+        // 在 init 或 renderGraph 中（确保只绑定一次）
+        instance.bind('click', function(connection, originalEvent) {
+            if (connection && connection.data && connection.data.option_id) {
+                var option_id = connection.data.option_id;
+                // 获取 source/target 信息
+                var ep1 = connection.endpoints[0];
+                var ep2 = connection.endpoints[1];
+                var sourceUuid = ep1.getUuid();
+                var targetUuid = ep2.getUuid();
+                var source = parseInt(sourceUuid.split('-')[1]);
+                var target = parseInt(targetUuid.split('-')[1]);
+                var sourceAnchor = sourceUuid.split('-')[2];
+                var targetAnchor = targetUuid.split('-')[2];
+                var label = connection.getOverlay('label') ? connection.getOverlay('label').getLabel() : '';
+                if (onEdgeClickCallback) {
+                    onEdgeClickCallback({
+                        option_id: option_id,
+                        source: source,
+                        target: target,
+                        label: label,
+                        sourceAnchor: sourceAnchor,
+                        targetAnchor: targetAnchor,
+                        connection: connection  // 保留以便后续操作
+                    });
+                }
+            }
+        });
 
         return instance;
     }
@@ -83,11 +114,22 @@ var JsPlumbRenderer = (function() {
             // instance.revalidate(el);
             console.log(`✅ 创建节点 #${id}，位置: (${x}, ${y})`);
 
+            el.className = 'node';
+            if (id === selectedNodeId) {
+                el.classList.add('selected-node');
+            }
+
             // 在 renderGraph 中，创建节点后添加：
             el.addEventListener('click', function(e) {
                 e.stopPropagation();
                 var nodeId = parseInt(this.id.replace('node-', ''));
                 console.log('🖱️ 点击节点 #' + nodeId);
+                // 移除所有节点的高亮
+                document.querySelectorAll('.node').forEach(function(n) {
+                    n.classList.remove('selected-node');
+                });
+                // 高亮当前节点
+                this.classList.add('selected-node');
                 if (onNodeClickCallback) {
                     onNodeClickCallback(nodeId);
                 }
@@ -109,8 +151,9 @@ var JsPlumbRenderer = (function() {
                     dragOptions: { allowDetach: false }
                 });
                 if (ep) {
-                    ep.bind('click', function(endpoint) {
-                        handleEndpointClick(endpoint);
+                    // ✅ 传递事件对象
+                    ep.bind('click', function(endpoint, originalEvent) {
+                        handleEndpointClick(endpoint, originalEvent);
                     });
                     console.log('  ↳ 添加端点 ' + uuid);
                 } else {
@@ -151,7 +194,8 @@ var JsPlumbRenderer = (function() {
                     try {
                         var conn = instance.connect({
                             uuids: [sourceUuid, targetUuid],
-                            paintStyle: { stroke: getRandomColor(), strokeWidth: 2 }
+                            paintStyle: { stroke: getRandomColor(), strokeWidth: 2 },
+                            data: { option_id: edge.option_id }  // ✅ 存储 option_id
                         });
                         if (conn) {
                             var label = edge.label || '连线';
@@ -172,7 +216,11 @@ var JsPlumbRenderer = (function() {
     }
 
 
-    function handleEndpointClick(endpoint) {
+    function handleEndpointClick(endpoint, originalEvent) {
+        // 过滤连线点击（避免误触端点）
+        if (originalEvent && originalEvent.target && originalEvent.target.closest('.jtk-connector')) {
+            return;
+        }
         // 如果没有选中的端点，则选中当前端点
         if (!selectedEndpoint) {
             selectedEndpoint = endpoint;
@@ -275,6 +323,12 @@ var JsPlumbRenderer = (function() {
             });
         });
 
+        // ✅ 确保 instance 存在
+        if (!instance) {
+            return { nodes: nodesData, edges: [] };
+        }
+
+        // ✅ 关键修复：获取所有连接
         var connections = instance.getConnections();
         var edgesData = connections.map(function(conn) {
             var ep1 = conn.endpoints[0];
@@ -289,9 +343,10 @@ var JsPlumbRenderer = (function() {
             return {
                 source: sourceId,
                 target: targetId,
+                label: label,
                 sourceAnchor: sourceDir,
                 targetAnchor: targetDir,
-                label: label
+                option_id: conn.data ? conn.data.option_id : null
             };
         });
         return { nodes: nodesData, edges: edgesData };
@@ -330,9 +385,11 @@ var JsPlumbRenderer = (function() {
                 dragOptions: { allowDetach: false }
             });
             if (ep) {
-                ep.bind('click', function(endpoint) {
-                    handleEndpointClick(endpoint);
+                // ✅ 传递事件对象
+                ep.bind('click', function(endpoint, originalEvent) {
+                    handleEndpointClick(endpoint, originalEvent);
                 });
+                console.log('  ↳ 添加端点 ' + uuid);
             } else {
                 console.warn('⚠️ 端点添加失败:', uuid);
             }
@@ -412,6 +469,37 @@ var JsPlumbRenderer = (function() {
         return colors[Math.floor(Math.random() * colors.length)];
     }
 
+    function highlightNode(nodeId) {
+        // 清除之前的高亮
+        if (selectedNodeId !== null) {
+            var prevEl = nodeMap[selectedNodeId];
+            if (prevEl) {
+                prevEl.classList.remove('node-selected');
+            }
+        }
+        selectedNodeId = nodeId;
+        if (nodeId !== null) {
+            var el = nodeMap[nodeId];
+            if (el) {
+                el.classList.add('node-selected');
+            }
+        }
+    }
+
+    // 解决page_id自增生成节点，删除了不能再复用
+    function getNextAvailablePageId() {
+        var existingIds = Object.keys(nodeMap).map(Number);
+        existingIds.sort((a, b) => a - b);
+        var nextId = 1;
+        for (var i = 0; i < existingIds.length; i++) {
+            if (existingIds[i] === nextId) {
+                nextId++;
+            } else if (existingIds[i] > nextId) {
+                break;
+            }
+        }
+        return nextId;
+    }
     // 公开 API
     return {
         init: init,
@@ -421,6 +509,8 @@ var JsPlumbRenderer = (function() {
         deleteNode: deleteNode,
         getMaxNodeId: getMaxNodeId,
         resize: resize,
-        destroy: destroy
+        destroy: destroy,
+        highlightNode: highlightNode,
+        getNextAvailablePageId:getNextAvailablePageId,
     };
 })();

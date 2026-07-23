@@ -1,6 +1,6 @@
+import hashlib
 from flask_sqlalchemy import SQLAlchemy
 from datetime import datetime
-import hashlib
 
 db = SQLAlchemy()
 
@@ -11,19 +11,14 @@ class Story(db.Model):
     story_id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     story_name = db.Column(db.String(100), nullable=False)
     story_desc = db.Column(db.Text, nullable=False)
-    create_time = db.Column(db.DateTime, default=datetime.utcnow)
     is_published = db.Column(db.Boolean, default=0)
-    has_draft = db.Column(db.Boolean, default=0)
+    create_time = db.Column(db.DateTime, default=datetime.utcnow)
     update_time = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     is_deleted = db.Column(db.Boolean, default=0)
-    edges = db.Column(db.JSON, default=list)
 
-    pages = db.relationship(
-        'StoryPage',
-        backref='story',
-        lazy=True,
-        cascade='all, delete-orphan'
-    )
+    # 关联关系
+    pages = db.relationship('StoryPage', backref='story', lazy=True, cascade='all, delete-orphan')
+    options = db.relationship('StoryPageOption', backref='story', lazy=True, cascade='all, delete-orphan')
 
 
 class StoryPage(db.Model):
@@ -31,53 +26,45 @@ class StoryPage(db.Model):
 
     global_id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     story_id = db.Column(db.Integer, db.ForeignKey('story.story_id'), nullable=False)
-    local_page_id = db.Column(db.Integer, nullable=False)
-    page_type = db.Column(db.String(20), default='process')
+    page_id = db.Column(db.Integer, nullable=False)          # 原 local_page_id
+    page_type = db.Column(db.String(20), default='process')  # process, true_ending, false_ending
     content = db.Column(db.Text, nullable=False)
-    options = db.Column(db.Text, nullable=False, default='[]')
-    is_true_ending = db.Column(db.Integer, default=0)
+    draft_content = db.Column(db.Text, nullable=True)
+    has_draft = db.Column(db.Boolean, default=0)
     pos_x = db.Column(db.Integer, default=50)
     pos_y = db.Column(db.Integer, default=50)
 
-    # 草稿字段
-    draft_content = db.Column(db.Text, nullable=True)
-    draft_options = db.Column(db.Text, nullable=True)
-    has_draft = db.Column(db.Boolean, default=0)
-
     __table_args__ = (
-        db.UniqueConstraint('story_id', 'local_page_id', name='uq_story_page'),
+        db.UniqueConstraint('story_id', 'page_id', name='uq_story_page'),
     )
 
-    def get_options_list(self):
-        """将 options JSON 字符串解析为 Python 列表"""
-        import json
-        if not self.options:
-            return []
-        try:
-            return json.loads(self.options)
-        except (json.JSONDecodeError, TypeError):
-            return []
 
-    def get_draft_options_list(self):
-        """将 draft_options JSON 字符串解析为 Python 列表"""
-        import json
-        if not self.draft_options:
-            return []
-        try:
-            return json.loads(self.draft_options)
-        except (json.JSONDecodeError, TypeError):
-            return []
+class StoryPageOption(db.Model):
+    __tablename__ = 'story_page_options'
 
-    def set_options_from_list(self, options_list):
-        """将 Python 列表转为 JSON 字符串存入 options"""
-        import json
-        self.options = json.dumps(options_list, ensure_ascii=False)
+    option_id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    story_id = db.Column(db.Integer, db.ForeignKey('story.story_id'), nullable=False)
+    source_page = db.Column(db.Integer, nullable=False)
+    target_page = db.Column(db.Integer, nullable=False)
+    option_text = db.Column(db.Text, nullable=False)
+    source_anchor = db.Column(db.String(10), default='right')
+    target_anchor = db.Column(db.String(10), default='left')
 
-    def set_draft_options_from_list(self, options_list):
-        """将 Python 列表转为 JSON 字符串存入 draft_options"""
-        import json
-        self.draft_options = json.dumps(options_list, ensure_ascii=False)
-
+    # 外键约束（确保 page_id 存在于 story_page 中）
+    __table_args__ = (
+        db.ForeignKeyConstraint(
+            ['source_page', 'story_id'],
+            ['story_page.page_id', 'story_page.story_id']
+        ),
+        db.ForeignKeyConstraint(
+            ['target_page', 'story_id'],
+            ['story_page.page_id', 'story_page.story_id']
+        ),
+        db.UniqueConstraint(
+            'story_id', 'source_page', 'target_page', 'source_anchor', 'target_anchor',
+            name='uq_unique_edge'
+        ),
+    )
 
 class AdminConfig(db.Model):
     """管理员配置表 - 存储密码等配置"""
