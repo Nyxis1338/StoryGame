@@ -1,3 +1,8 @@
+// ============================================================
+// 故事编辑器 - Vue 组件 (creator.js)
+// 依赖: StoryAPI (story_api.js), JsPlumbRenderer (jsplumb_renderer.js)
+// ============================================================
+
 const { createApp } = Vue;
 
 const app = createApp({
@@ -10,17 +15,13 @@ const app = createApp({
             saving: false,
             saved: false,
             autoSaveTimer: null,
-            chart: null,
-            graphData: { nodes: [], edges: [] },
             storyStatus: '草稿',
             hasUnsavedChanges: false,
-            // ----- 左右分栏 -----
-            leftWidth: 70,          // 左侧宽度百分比
+            leftWidth: parseFloat(localStorage.getItem('leftWidth')) || 70,
             isDragging: false,
             dragStartX: 0,
             startLeftWidth: 70,
-            isFullscreen: false,   // 左侧全屏
-            // ----- 模态框 -----
+            isFullscreen: false,
             modalVisible: false,
             modalTitle: '提示',
             modalMessage: '',
@@ -28,28 +29,27 @@ const app = createApp({
             modalCancelText: '取消',
             modalResolve: null,
             modalIsDanger: false,
-            // ----- Toast -----
             toastVisible: false,
             toastMessage: '',
             toastType: 'success',
-            toastTimer: null
+            toastTimer: null,
         };
     },
+
     methods: {
         // ============================================================
         // 页面加载
         // ============================================================
         loadPage(localId) {
-            fetch(`/api/page/${this.storyId}/${localId}?mode=edit`)
-                .then(res => res.json())
+            StoryAPI.getPage(this.storyId, localId)
                 .then(data => {
                     this.currentPage = data;
+                    this.currentPage.id = data.id;   // ← 确保 id 是全局主键
                     this.hasUnsavedChanges = false;
-                    console.log(`📌 第${localId}页 坐标: (${data.pos_x || 50}, ${data.pos_y || 50})`);
                 })
                 .catch(err => {
                     console.error('加载页面失败:', err);
-                    this.showToast('加载页面失败，请检查网络连接', 'error');
+                    this.showToast('加载页面失败', 'error');
                 });
         },
 
@@ -68,32 +68,24 @@ const app = createApp({
         savePage() {
             if (!this.currentPage) return;
             this.saving = true;
-            fetch(`/api/page/${this.currentPage.id}`, {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    content: this.currentPage.content,
-                    options: this.currentPage.options,
-                    page_type: this.currentPage.page_type,
-                    is_true_ending: this.currentPage.is_true_ending
-                })
-            })
-            .then(res => {
-                if (!res.ok) throw new Error('保存失败');
-                return res.json();
+            StoryAPI.updatePage(this.currentPage.id, {
+                content: this.currentPage.content,
+                options: this.currentPage.options,
+                page_type: this.currentPage.page_type,
+                is_true_ending: this.currentPage.is_true_ending
             })
             .then(() => {
                 this.saving = false;
                 this.saved = true;
                 this.hasUnsavedChanges = false;
                 setTimeout(() => { this.saved = false; }, 2000);
-                this.refreshGraph();
+
                 this.showToast('✅ 保存成功', 'success');
             })
             .catch(err => {
                 console.error('保存失败:', err);
                 this.saving = false;
-                this.showToast('❌ 保存失败，请检查网络连接', 'error');
+                this.showToast('❌ 保存失败', 'error');
             });
         },
 
@@ -101,9 +93,45 @@ const app = createApp({
         // 选项管理
         // ============================================================
         addOption() {
-            if (!this.currentPage) return;
-            this.currentPage.options.push({ text: '新选项', jump_local_id: 1 });
-            this.autoSave();
+            if (!this.currentPage) {
+                this.showToast('请先选择一个页面', 'warning');
+                return;
+            }
+            // 安全获取最大节点 ID
+            const nodes = (this.graphData && this.graphData.nodes) || [];
+            const maxId = nodes.reduce((max, n) => Math.max(max, n.id || 0), 0);
+            const newLocalId = maxId + 1;
+
+            // 1. 创建新页面
+            StoryAPI.createPage(this.storyId, {
+                local_page_id: newLocalId,
+                content: '# 新页面\n请编辑内容',
+                options: [],
+                pos_x: 100 + Math.random() * 300,
+                pos_y: 100 + Math.random() * 200
+            })
+            .then(() => {
+                // 2. 更新当前页面的 options
+                this.currentPage.options.push({
+                    text: '新选项',
+                    jump_local_id: newLocalId
+                });
+                // 3. 保存当前页面（更新 options）
+                return StoryAPI.updatePage(this.currentPage.id, {
+                    options: this.currentPage.options
+                });
+            })
+            .then(() => {
+                // 4. 获取新的 edges 并保存（包含新连线）
+                this.saveGraphData();
+                // 5. 刷新图数据
+                this.refreshGraph();
+                this.showToast('✅ 新分支创建成功', 'success');
+            })
+            .catch(err => {
+                console.error('创建分支失败:', err);
+                this.showToast('❌ 创建分支失败', 'error');
+            });
         },
 
         removeOption(idx) {
@@ -113,34 +141,26 @@ const app = createApp({
         },
 
         // ============================================================
-        // 页面管理
+        // 页面管理（新增/删除）
         // ============================================================
         addNewPage() {
             if (!this.currentPage) return;
-            const maxId = this.graphData.nodes.reduce((max, n) => Math.max(max, n.id), 0);
-            const newLocalId = maxId + 1;
-            fetch(`/api/page/${this.storyId}`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    local_page_id: newLocalId,
-                    content: '# 新页面\n请编辑内容',
-                    options: []
-                })
-            })
-            .then(res => {
-                if (!res.ok) throw new Error('创建页面失败');
-                return res.json();
+            const maxId = JsPlumbRenderer.getMaxNodeId() + 1;
+            const newLocalId = maxId || 1;
+            StoryAPI.createPage(this.storyId, {
+                local_page_id: newLocalId,
+                content: '# 新页面\n请编辑内容',
+                options: [],
+                pos_x: 100 + Math.random() * 200,
+                pos_y: 100 + Math.random() * 200
             })
             .then(() => {
-                this.currentPage.options.push({ text: '前往新页', jump_local_id: newLocalId });
-                this.savePage();
                 this.refreshGraph();
-                this.showToast('✅ 新页面创建成功！', 'success');
+                this.showToast('✅ 新页面创建成功', 'success');
             })
             .catch(err => {
                 console.error('创建页面失败:', err);
-                this.showToast('❌ 创建页面失败', 'error');
+                this.showToast('❌ 创建失败', 'error');
             });
         },
 
@@ -154,9 +174,19 @@ const app = createApp({
                 true
             ).then(confirmed => {
                 if (confirmed) {
-                    fetch(`/api/page/${this.currentPage.id}`, { method: 'DELETE' })
-                        .then(res => {
-                            if (!res.ok) return res.json().then(err => { throw new Error(err.error || '删除失败'); });
+                    const nodeId = this.currentPage.local_id;
+                    // 1. 查找所有指向该节点的页面，清理其 options
+                    // 可通过遍历 graphData.edges 找到所有 source 为 nodeId 的边，但这里简化：直接后端处理
+                    // 或者前端遍历所有节点，但需要获取所有页面的 options
+                    // 推荐在后端删除页面时自动清理引用（在 delete_page 接口中处理）
+                    
+                    // 2. 调用后端删除页面（后端应清理引用）
+                    StoryAPI.deletePage(this.currentPage.id)
+                        .then(() => {
+                            // 3. 从渲染器中删除节点
+                            JsPlumbRenderer.deleteNode(nodeId);
+                            // 4. 保存图数据（移除相关 edges）
+                            this.saveGraphData();
                             this.currentPage = null;
                             this.refreshGraph();
                             this.showToast('✅ 页面已删除', 'success');
@@ -170,14 +200,17 @@ const app = createApp({
         },
 
         // ============================================================
-        // ECharts 图表（去掉 force 布局）
+        // 图表渲染（调用渲染器）
         // ============================================================
         refreshGraph() {
-            fetch(`/api/graph/${this.storyId}?mode=edit`)
-                .then(res => res.json())
+            StoryAPI.getGraph(this.storyId)
                 .then(data => {
+                    // 安全处理，防止 data 为 null/undefined
+                    if (!data) data = { nodes: [], edges: [] };
+                    if (!data.nodes) data.nodes = [];
+                    if (!data.edges) data.edges = [];
                     this.graphData = data;
-                    this.updateChart(data);
+                    JsPlumbRenderer.renderGraph(data.nodes, data.edges);
                     this.fetchStoryStatus();
                 })
                 .catch(err => {
@@ -185,156 +218,22 @@ const app = createApp({
                 });
         },
 
-        updateChart(data) {
-            const container = document.getElementById('chart-container');
-            if (!container) {
-                console.error('找不到 chart-container 元素');
-                return;
-            }
-
-            if (!this.chart) {
-                this.chart = echarts.init(container);
-
-                this.chart.on('click', (params) => {
-                    if (params.dataType === 'node') {
-                        this.loadPage(params.data.id);
-                    }
-                });
-
-                this.chart.on('dragend', (params) => {
-                    if (params.dataType === 'node') {
-                        const node = params.data;
-                        console.log(`📍 节点 ${node.id} 拖动到: (${Math.round(node.x)}, ${Math.round(node.y)})`);
-                    }
-                });
-            }
-
-            if (!data.nodes || data.nodes.length === 0) {
-                this.chart.clear();
-                this.chart.setOption({
-                    title: { text: '暂无页面数据', left: 'center', top: 'center', textStyle: { color: '#999', fontSize: 16 } }
-                });
-                return;
-            }
-
-            const nodesWithLabel = data.nodes.map(node => ({
-                ...node,
-                label: {
-                    show: true,
-                    position: 'inside',
-                    fontSize: 12,
-                    color: '#ffffff',
-                    fontWeight: 'bold',
-                    formatter: function(params) {
-                        const text = params.data.labelText || `第${params.data.id}页`;
-                        return text.length > 20 ? text.substring(0, 20) + '...' : text;
-                    }
-                },
-                symbol: 'rect',
-                symbolSize: [160, 55],
-                itemStyle: {
-                    color: node.itemStyle?.color || '#5470c6',
-                    borderColor: '#fff',
-                    borderWidth: 2,
-                    borderRadius: 8,
-                    shadowBlur: 8,
-                    shadowColor: 'rgba(0,0,0,0.15)'
-                }
-            }));
-
-            const edgesWithLabel = (data.edges || []).map(edge => ({
-                ...edge,
-                label: {
-                    show: true,
-                    formatter: edge.label || '',
-                    fontSize: 12,
-                    color: '#2c3e50',
-                    fontWeight: 'bold',
-                    backgroundColor: 'rgba(255,255,255,0.92)',
-                    padding: [4, 12],
-                    borderRadius: 6,
-                    borderColor: '#3498db',
-                    borderWidth: 1
-                }
-            }));
-
-            // ⭐ 关键：series 配置在这里
-            this.chart.setOption({
-                title: { text: '故事流程图', left: 'center', textStyle: { fontSize: 16, fontWeight: 'bold' } },
-                tooltip: {
-                    formatter: (params) => {
-                        if (params.dataType === 'node') {
-                            return `<b>第${params.data.id}页</b><br>${params.data.value || ''}`;
-                        }
-                        return params.data.label || '';
-                    }
-                },
-                series: [{
-                    type: 'graph',
-                    layout: 'force',           // ← 这里！改成 force
-                    data: nodesWithLabel,
-                    edges: edgesWithLabel,
-                    roam: true,
-                    draggable: true,
-                    force: {
-                        repulsion: 100,        // 减小排斥力
-                        edgeLength: 200,
-                        layoutAnimation: false,
-                        friction: 0.3,
-                        gravity: 0.05
-                    },
-                    label: {
-                        show: true,
-                        position: 'inside',
-                        fontSize: 12,
-                        color: '#ffffff',
-                        fontWeight: 'bold',
-                        formatter: function(params) {
-                            const text = params.data.labelText || `第${params.data.id}页`;
-                            return text.length > 20 ? text.substring(0, 20) + '...' : text;
-                        }
-                    },
-                    edgeLabel: {
-                        show: true,
-                        formatter: (p) => p.data.label || '',
-                        fontSize: 12,
-                        color: '#2c3e50',
-                        fontWeight: 'bold',
-                        backgroundColor: 'rgba(255,255,255,0.92)',
-                        padding: [4, 12],
-                        borderRadius: 6,
-                        borderColor: '#3498db',
-                        borderWidth: 1
-                    },
-                    itemStyle: {
-                        color: '#5470c6',
-                        borderColor: '#fff',
-                        borderWidth: 2,
-                        borderRadius: 8,
-                        shadowBlur: 8,
-                        shadowColor: 'rgba(0,0,0,0.15)'
-                    },
-                    edgeSymbol: ['none', 'arrow'],
-                    edgeSymbolSize: [0, 10],
-                    lineStyle: { color: '#7f8c8d', width: 2, curveness: 0.2 }
-                }]
-            });
-            this.chart.resize();
+        saveGraphData() {
+            const graphData = JsPlumbRenderer.getGraphData();
+            StoryAPI.saveGraph(this.storyId, graphData)
+                .catch(err => console.error('保存图数据失败:', err));
         },
 
         // ============================================================
         // 故事状态
         // ============================================================
         fetchStoryStatus() {
-            fetch(`/api/story/${this.storyId}`)
-                .then(res => res.json())
+            StoryAPI.getStoryStatus(this.storyId)
                 .then(data => {
                     this.storyName = data.story_name || '未命名故事';
-                    this.storyStatus = data.is_published === 1 ? '已发布' : '草稿';
+                    this.storyStatus = data.is_published ? '已发布' : '草稿';
                 })
-                .catch(err => {
-                    console.error('获取故事状态失败:', err);
-                });
+                .catch(err => console.error('获取故事状态失败:', err));
         },
 
         publishStory() {
@@ -346,18 +245,14 @@ const app = createApp({
                 false
             ).then(confirmed => {
                 if (confirmed) {
-                    fetch(`/api/story/${this.storyId}/publish`, { method: 'POST' })
-                        .then(res => {
-                            if (!res.ok) throw new Error('发布失败');
-                            return res.json();
-                        })
+                    StoryAPI.publishStory(this.storyId)
                         .then(() => {
-                            this.showToast('✅ 发布成功！', 'success');
+                            this.showToast('✅ 发布成功', 'success');
                             this.fetchStoryStatus();
                         })
                         .catch(err => {
                             console.error('发布失败:', err);
-                            this.showToast('❌ 发布失败，请检查故事是否完整（必须包含起始页）', 'error');
+                            this.showToast('❌ 发布失败', 'error');
                         });
                 }
             });
@@ -396,25 +291,11 @@ const app = createApp({
         },
 
         goHome() {
-            if (this.hasUnsavedChanges) {
-                this.showConfirm(
-                    '🏠 离开确认',
-                    '有未保存的修改，确定离开吗？',
-                    '确定离开',
-                    '取消',
-                    false
-                ).then(confirmed => {
-                    if (confirmed) {
-                        window.location.href = '/creator';
-                    }
-                });
-            } else {
-                window.location.href = '/creator';
-            }
+            window.location.href = '/creator';
         },
 
         // ============================================================
-        // 左右分栏拖拽（Vue 原生，丝滑流畅）
+        // 左右分栏拖拽
         // ============================================================
         startDrag(e) {
             this.isDragging = true;
@@ -422,48 +303,42 @@ const app = createApp({
             this.startLeftWidth = this.leftWidth;
             document.body.style.cursor = 'col-resize';
             document.body.style.userSelect = 'none';
+            const container = document.getElementById('chart-container');
+            if (container) container.style.pointerEvents = 'none';
         },
 
         onDrag(e) {
             if (!this.isDragging) return;
-            const container = this.$el.querySelector('.editor-main');
+            const container = this.$refs.mainContainer;
             if (!container) return;
             const rect = container.getBoundingClientRect();
             const totalWidth = rect.width;
             if (totalWidth === 0) return;
-
             const delta = (e.clientX - this.dragStartX) / totalWidth * 100;
             let newWidth = Math.max(15, Math.min(85, this.startLeftWidth + delta));
             this.leftWidth = newWidth;
+            JsPlumbRenderer.resize && JsPlumbRenderer.resize();
         },
 
         stopDrag() {
+            if (!this.isDragging) return;
             this.isDragging = false;
             document.body.style.cursor = '';
             document.body.style.userSelect = '';
-            // 拖拽结束后刷新 ECharts
-            setTimeout(() => {
-                if (this.chart) this.chart.resize();
-            }, 50);
+            localStorage.setItem('leftWidth', this.leftWidth);
+            const container = document.getElementById('chart-container');
+            if (container) container.style.pointerEvents = '';
+            setTimeout(() => { JsPlumbRenderer.resize && JsPlumbRenderer.resize(); }, 50);
         },
 
-        // ============================================================
-        // 左侧全屏切换
-        // ============================================================
         toggleFullscreen() {
             this.isFullscreen = !this.isFullscreen;
-            if (this.isFullscreen) {
-                this.leftWidth = 100;
-            } else {
-                this.leftWidth = 70;
-            }
-            setTimeout(() => {
-                if (this.chart) this.chart.resize();
-            }, 100);
+            this.leftWidth = this.isFullscreen ? 100 : 70;
+            setTimeout(() => { JsPlumbRenderer.resize && JsPlumbRenderer.resize(); }, 100);
         },
 
         // ============================================================
-        // 模态框
+        // 模态框 / Toast
         // ============================================================
         showConfirm(title, message, confirmText = '确定', cancelText = '取消', isDanger = false) {
             return new Promise((resolve) => {
@@ -487,9 +362,6 @@ const app = createApp({
             if (this.modalResolve) this.modalResolve(false);
         },
 
-        // ============================================================
-        // Toast
-        // ============================================================
         showToast(message, type = 'success', duration = 2000) {
             clearTimeout(this.toastTimer);
             this.toastMessage = message;
@@ -498,29 +370,114 @@ const app = createApp({
             this.toastTimer = setTimeout(() => {
                 this.toastVisible = false;
             }, duration);
+        },
+
+        exportBackup() {
+            window.location.href = '/api/backup/export';
+        },
+
+        importBackup(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                if (confirm('导入将覆盖现有所有数据，确定继续？')) {
+                    fetch('/api/backup/import', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: e.target.result
+                    })
+                    .then(res => res.json())
+                    .then(data => {
+                        alert('导入成功，共 ' + data.imported + ' 个故事');
+                        location.reload();
+                    })
+                    .catch(err => alert('导入失败: ' + err));
+                }
+            };
+            reader.readAsText(file);
         }
     },
 
     mounted() {
-        setTimeout(() => {
-            this.refreshGraph();
-        }, 200);
-
-        window.addEventListener('resize', () => {
-            if (this.chart) this.chart.resize();
+        // 初始化渲染器，传入回调
+        JsPlumbRenderer.init('chart-container', {
+            onNodeClick: (nodeId) => {
+                this.loadPage(nodeId);
+            },
+            onNodeMove: (nodeId, x, y) => {
+                // 节点移动时自动保存图数据（防抖）
+                if (this._saveGraphTimer) clearTimeout(this._saveGraphTimer);
+                this._saveGraphTimer = setTimeout(() => {
+                    this.saveGraphData();
+                }, 500);
+            },
+            onOptionChange: (sourceLocalId, targetLocalId, action, label) => {
+                // 1. 获取源页面的当前 options
+                StoryAPI.getPage(this.storyId, sourceLocalId)
+                    .then(data => {
+                        const options = data.options || [];
+                        if (action === 'add') {
+                            // 检查是否已存在相同跳转，避免重复
+                            if (!options.find(opt => opt.jump_local_id === targetLocalId)) {
+                                options.push({ text: label || '新连线', jump_local_id: targetLocalId });
+                            }
+                        } else if (action === 'remove') {
+                            const idx = options.findIndex(opt => opt.jump_local_id === targetLocalId);
+                            if (idx !== -1) options.splice(idx, 1);
+                        }
+                        // 2. 更新源页面的 options
+                        return StoryAPI.updatePage(data.id, { options: options });
+                    })
+                    .then(() => {
+                        // 3. 保存图数据（包含 edges）
+                        this.saveGraphData();
+                        // 4. 如果当前页面是源页面，更新本地 currentPage.options
+                        if (this.currentPage && this.currentPage.local_id === sourceLocalId) {
+                            // 重新加载当前页面以刷新右侧面板
+                            this.loadPage(sourceLocalId);
+                        }
+                        // 5. 刷新图（可选，但会触发重绘）
+                        // this.refreshGraph(); // 如果不想全量刷新，可只更新本地数据
+                    })
+                    .catch(err => {
+                        console.error('更新选项失败:', err);
+                        this.showToast('同步连线数据失败', 'error');
+                    });
+            },
+            onLabelChange: (sourceLocalId, targetLocalId, newLabel) => {
+                this.saveGraphData();
+            }
         });
 
+        // 加载图数据
+        this.refreshGraph();
+
+        // 事件绑定
+        document.addEventListener('mousemove', this.onDrag);
+        document.addEventListener('mouseup', this.stopDrag);
+        document.addEventListener('mouseleave', this.stopDrag);
+        window.addEventListener('resize', () => {
+            JsPlumbRenderer.resize && JsPlumbRenderer.resize();
+        });
         window.addEventListener('beforeunload', (e) => {
             if (this.hasUnsavedChanges) {
                 e.preventDefault();
-                e.returnValue = '您有未保存的更改，确定要离开吗？';
+                e.returnValue = '您有未保存的更改';
             }
         });
     },
 
+    beforeUnmount() {
+        document.removeEventListener('mousemove', this.onDrag);
+        document.removeEventListener('mouseup', this.stopDrag);
+        document.removeEventListener('mouseleave', this.stopDrag);
+        JsPlumbRenderer.destroy && JsPlumbRenderer.destroy();
+    },
+
     template: `
         <div style="display:flex; flex-direction:column; height:100vh; background:#f0f2f5;">
-            <!-- ====== 顶部导航栏 ====== -->
+            <!-- 导航栏 -->
             <div style="display:flex; justify-content:space-between; align-items:center; padding:12px 24px; background:white; border-bottom:1px solid #e0e0e0; flex-shrink:0; z-index:100;">
                 <div style="display:flex; align-items:center; gap:12px;">
                     <h2 style="font-size:18px; margin:0;">📖 {{ storyName || '未命名故事' }}</h2>
@@ -535,50 +492,40 @@ const app = createApp({
                 </div>
             </div>
 
-            <!-- ====== 主内容区 ====== -->
-            <div class="editor-main" style="display:flex; flex:1; overflow:hidden; padding:12px; gap:0;">
-
-                <!-- ====== 左侧：ECharts ====== -->
-                <div id="chart-container" style="background:white; border-radius:16px; box-shadow:0 2px 8px rgba(0,0,0,0.06); overflow:hidden; min-height:400px; position:relative; transition: flex 0.15s ease;" :style="{ flex: '0 0 ' + leftWidth + '%' }">
-                    <!-- 全屏按钮 -->
+            <!-- 主内容区 -->
+            <div class="main" ref="mainContainer" style="display:flex; flex:1; overflow:hidden; padding:12px; gap:0;">
+                <!-- 左侧：思维导图 -->
+                <div style="height:100%; background:white; border-radius:16px; box-shadow:0 2px 8px rgba(0,0,0,0.06); overflow:hidden; min-height:400px; position:relative; flex-shrink:0;" :style="{ width: leftWidth + '%' }">
+                    <div id="chart-container" style="width:100%; height:100%;"></div>
                     <button @click="toggleFullscreen" style="position:absolute; top:12px; right:12px; z-index:10; background:rgba(255,255,255,0.92); border:1px solid #ddd; border-radius:6px; padding:6px 12px; cursor:pointer; font-size:13px; box-shadow:0 2px 8px rgba(0,0,0,0.08);">
                         {{ isFullscreen ? '⛶ 退出全屏' : '⛶ 全屏' }}
                     </button>
                 </div>
 
-                <!-- ====== 分隔条 ====== -->
+                <!-- 分隔条 -->
                 <div v-if="leftWidth > 5 && leftWidth < 95"
                      style="flex: 0 0 6px; background:#e0e0e0; cursor:col-resize; flex-shrink:0; transition:background 0.2s; position:relative; border-radius:3px; margin:0 4px;"
                      :style="{background: isDragging ? '#1a73e8' : '#e0e0e0'}"
-                     @mousedown="startDrag"
-                     @mousemove="onDrag"
-                     @mouseup="stopDrag"
-                     @mouseleave="stopDrag">
+                     @mousedown="startDrag">
                     <span style="position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); color:#999; font-size:14px; font-weight:bold;">⋮</span>
                 </div>
 
-                <!-- ====== 右侧：编辑面板 ====== -->
-                <div style="background:white; border-radius:16px; box-shadow:0 2px 8px rgba(0,0,0,0.06); padding:24px 28px; overflow-y:auto; min-width:200px; transition: flex 0.15s ease;" :style="{ flex: '0 0 ' + (100 - leftWidth) + '%' }">
-                    <!-- 面板标题 -->
+                <!-- 右侧：编辑面板 -->
+                <div style="height:100%; background:white; border-radius:16px; box-shadow:0 2px 8px rgba(0,0,0,0.06); padding:24px 28px; overflow-y:auto; min-width:200px; flex:1;" :style="{ width: (100 - leftWidth) + '%' }">
                     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
                         <span style="font-weight:600; font-size:16px;" v-if="currentPage">编辑第 {{ currentPage.local_id }} 页</span>
                         <span style="font-weight:600; font-size:16px;" v-else>编辑面板</span>
+                        <div>
+                            <button @click="addNewPage" style="background:#1a73e8; color:white; border:none; padding:4px 12px; border-radius:6px; cursor:pointer; font-size:13px;">➕ 新增子页</button>
+                            <button @click="deleteCurrentPage" style="background:#ea4335; color:white; border:none; padding:4px 12px; border-radius:6px; cursor:pointer; font-size:13px; margin-left:8px;">🗑️ 删除</button>
+                        </div>
                     </div>
 
-                    <!-- 编辑器内容 -->
                     <div v-if="currentPage">
-                        <div style="margin-bottom:15px; display:flex; gap:10px; flex-wrap:wrap;">
-                            <button @click="addNewPage" style="background:#1a73e8; color:white; border:none; padding:6px 14px; border-radius:8px; cursor:pointer; font-size:13px;">➕ 新增子页</button>
-                            <button @click="deleteCurrentPage" style="background:#ea4335; color:white; border:none; padding:6px 14px; border-radius:8px; cursor:pointer; font-size:13px;">🗑️ 删除本页</button>
-                        </div>
-
-                        <!-- 正文 -->
                         <div style="margin-bottom:18px;">
                             <label style="display:block; font-weight:500; font-size:14px; color:#333; margin-bottom:4px;">正文 (支持Markdown)</label>
                             <textarea v-model="currentPage.content" @input="autoSave" style="width:100%; padding:10px 14px; border:1px solid #ddd; border-radius:8px; font-size:14px; font-family:inherit; box-sizing:border-box; min-height:120px; resize:vertical;"></textarea>
                         </div>
-
-                        <!-- 页面类型 -->
                         <div style="margin-bottom:18px;">
                             <label style="display:block; font-weight:500; font-size:14px; color:#333; margin-bottom:4px;">页面类型</label>
                             <select v-model="currentPage.page_type" @change="autoSave" style="width:100%; padding:10px 14px; border:1px solid #ddd; border-radius:8px; font-size:14px; font-family:inherit; box-sizing:border-box;">
@@ -587,13 +534,9 @@ const app = createApp({
                                 <option value="ending">结局</option>
                             </select>
                         </div>
-
-                        <!-- 正确结局 -->
                         <div style="margin-bottom:18px;">
                             <label style="display:block; font-weight:500; font-size:14px; color:#333; margin-bottom:4px;"><input type="checkbox" v-model="currentPage.is_true_ending" @change="autoSave"> 是正确结局</label>
                         </div>
-
-                        <!-- 分支选项 -->
                         <div style="margin-bottom:18px;">
                             <label style="display:block; font-weight:500; font-size:14px; color:#333; margin-bottom:4px;">分支选项</label>
                             <div v-for="(opt, idx) in currentPage.options" :key="idx" style="display:flex; gap:8px; align-items:center; background:#f8f9fa; padding:8px 12px; border-radius:8px; margin-bottom:8px;">
@@ -603,22 +546,18 @@ const app = createApp({
                             </div>
                             <button @click="addOption" style="background:#e8f0fe; color:#1a73e8; border:1px dashed #1a73e8; padding:8px 16px; border-radius:20px; cursor:pointer; font-size:14px;">➕ 添加选项</button>
                         </div>
-
-                        <!-- 保存按钮 -->
                         <div style="margin-top:10px;">
                             <button @click="savePage" :disabled="saving" style="background:#1a73e8; color:white; border:none; padding:10px 24px; border-radius:8px; font-weight:500; cursor:pointer; font-size:15px;" :style="{opacity: saving ? 0.6 : 1}">{{ saving ? '保存中...' : '手动保存' }}</button>
                             <span v-show="saved" style="color:#34a853; font-size:14px; margin-left:12px;">✅ 已保存</span>
                         </div>
                     </div>
-
-                    <!-- 空状态 -->
                     <div v-else style="color:#999; text-align:center; padding:60px 0; font-size:16px;">
                         <p>👆 请点击左侧图中的节点开始编辑</p>
                     </div>
                 </div>
             </div>
 
-            <!-- ====== 模态框 ====== -->
+            <!-- 模态框 -->
             <div v-if="modalVisible" style="position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.5); display:flex; align-items:center; justify-content:center; z-index:9999;">
                 <div style="background:white; border-radius:16px; max-width:420px; width:90%; padding:24px; box-shadow:0 20px 60px rgba(0,0,0,0.3);">
                     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
@@ -635,7 +574,7 @@ const app = createApp({
                 </div>
             </div>
 
-            <!-- ====== Toast ====== -->
+            <!-- Toast -->
             <div v-if="toastVisible" style="position:fixed; top:30px; left:50%; transform:translateX(-50%); padding:12px 28px; border-radius:12px; color:white; font-size:15px; z-index:10000; box-shadow:0 4px 20px rgba(0,0,0,0.15); background: #34a853;" :style="{background: toastType === 'error' ? '#ea4335' : toastType === 'warning' ? '#fbbc04' : '#34a853', color: toastType === 'warning' ? '#333' : 'white'}">
                 {{ toastMessage }}
             </div>

@@ -80,6 +80,40 @@ createApp({
         formatDate(iso) {
             if (!iso) return '未知';
             return new Date(iso).toLocaleDateString('zh-CN');
+        },
+
+        // ============================================================
+        // 导入导出功能（与模板中按钮绑定）
+        // ============================================================
+        exportBackup() {
+            window.location.href = '/api/backup/export';
+        },
+
+        // 触发文件选择器
+        triggerFileInput() {
+            document.getElementById('importFile').click();
+        },
+
+        importBackup(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                if (confirm('导入将覆盖现有所有数据，确定继续？')) {
+                    fetch('/api/backup/import', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: e.target.result
+                    })
+                    .then(res => res.json())
+                    .then(data => {
+                        alert('导入成功，共 ' + data.imported + ' 个故事');
+                        location.reload();
+                    })
+                    .catch(err => alert('导入失败: ' + err));
+                }
+            };
+            reader.readAsText(file);
         }
     },
     mounted() {
@@ -96,10 +130,8 @@ createApp({
             <div class="creator-header">
                 <h1>✍️ 我的故事</h1>
                 <div style="display:flex; gap:12px; align-items:center;">
-                    <a href="/settings" style="color:#555; text-decoration:none; font-size:14px; padding:4px 12px; border-radius:6px;">⚙️ 修改密码</a>
-                    <a href="/trash" style="color:#555; text-decoration:none; font-size:14px; padding:4px 12px; border-radius:6px;">🗑️ 回收站</a>
-                    <a href="/" @click.prevent="logout" style="color:#ea4335; text-decoration:none; font-size:14px; padding:4px 12px; border-radius:6px;">🚪 退出</a>
                     <button @click="createStory" class="btn-primary">➕ 新建故事</button>
+                    <button @click="logout" style="color:#ea4335; background:transparent; border:1px solid #ea4335; padding:6px 12px; border-radius:6px; cursor:pointer;">🚪 退出</button>
                 </div>
             </div>
 
@@ -110,6 +142,11 @@ createApp({
                 <input type="text" class="search-input" v-model="keyword" placeholder="搜索故事名..." @keydown.enter="search">
                 <button @click="search" class="btn-primary" style="padding:6px 16px; border-radius:20px;">搜索</button>
             </div>
+            <div class="creator-toolbar">
+                <button class="btn-primary" @click="exportBackup">📤 导出数据</button>
+                <input type="file" id="importFile" accept=".json" style="display:none" @change="importBackup" />
+                <button class="btn-primary" @click="triggerFileInput">📥 导入数据</button>
+             </div>
 
             <div class="creator-grid">
                 <div v-for="story in stories" :key="story.story_id" class="creator-card">
@@ -129,7 +166,7 @@ createApp({
 
             <div v-if="loading" class="creator-loading">加载中...</div>
             <div v-if="!hasMore && stories.length > 0" class="creator-no-more">没有更多了</div>
-            <div v-if="!hasMore && stories.length === 0" class="creator-no-more">暂无故事，点击上方「新建故事」开始创作</div>
+            <div v-if="!hasMore && stories.length === 0" class="creator-no-more">暂无故事，点击「新建故事」开始创作</div>
         </div>
     `
 }).mount('#app');

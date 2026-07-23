@@ -4,189 +4,22 @@
     <meta charset="UTF-8">
     <title>故事编辑器</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/creator.css') }}">
-    <style>
-        /* 可拖拽分隔条样式 */
-        .splitter {
-            width: 6px;
-            background: #e0e0e0;
-            cursor: col-resize;
-            flex-shrink: 0;
-            transition: background 0.2s;
-            position: relative;
-        }
-        .splitter:hover,
-        .splitter.active {
-            background: #1a73e8;
-        }
-        .splitter::after {
-            content: '⋮';
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            color: #999;
-            font-size: 14px;
-            font-weight: bold;
-        }
-        .splitter:hover::after {
-            color: white;
-        }
-        /* 容器自适应 */
-        .editor-main {
-            display: flex;
-            flex: 1;
-            overflow: hidden;
-            padding: 12px;
-            gap: 0;
-        }
-        .chart-container {
-            flex: 3;
-            min-width: 200px;
-            height: 100%;
-            background: white;
-            border-radius: 16px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.06);
-            overflow: hidden;
-            min-height: 400px;
-            position: relative;
-        }
-        .chart-fullscreen-btn {
-            position: absolute;
-            top: 10px;
-            right: 10px;
-            z-index: 10;
-            background: rgba(255,255,255,0.9);
-            border: 1px solid #ddd;
-            border-radius: 4px;
-            padding: 4px 8px;
-            cursor: pointer;
-            font-size: 12px;
-        }
-        .chart-fullscreen-btn:hover {
-            background: white;
-            border-color: #1a73e8;
-        }
-        .editor-panel {
-            flex: 1.2;
-            min-width: 280px;
-            background: white;
-            border-radius: 16px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.06);
-            padding: 24px 28px;
-            overflow-y: auto;
-        }
-        .panel-header-bar {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 10px;
-        }
-        .panel-fullscreen-btn {
-            background: transparent;
-            border: 1px solid #ddd;
-            border-radius: 4px;
-            padding: 4px 8px;
-            cursor: pointer;
-            font-size: 12px;
-        }
-        .panel-fullscreen-btn:hover {
-            background: #f0f0f0;
-        }
-        /* 编辑器内部样式 */
-        .editor-field {
-            margin-bottom: 18px;
-        }
-        .editor-field label {
-            display: block;
-            font-weight: 500;
-            font-size: 14px;
-            color: #333;
-            margin-bottom: 4px;
-        }
-        .editor-field textarea,
-        .editor-field input,
-        .editor-field select {
-            width: 100%;
-            padding: 10px 14px;
-            border: 1px solid #ddd;
-            border-radius: 8px;
-            font-size: 14px;
-            font-family: inherit;
-            box-sizing: border-box;
-        }
-        .editor-field textarea {
-            min-height: 120px;
-            resize: vertical;
-        }
-        .option-row {
-            display: flex;
-            gap: 8px;
-            align-items: center;
-            background: #f8f9fa;
-            padding: 8px 12px;
-            border-radius: 8px;
-            margin-bottom: 8px;
-        }
-        .option-row input[type="text"] {
-            flex: 2;
-        }
-        .option-row input[type="number"] {
-            flex: 0.8;
-        }
-        .option-row .btn-remove {
-            background: #ea4335;
-            color: white;
-            border: none;
-            width: 28px;
-            height: 28px;
-            border-radius: 50%;
-            cursor: pointer;
-            font-size: 16px;
-            flex-shrink: 0;
-        }
-        .btn-add-option {
-            background: #e8f0fe;
-            color: #1a73e8;
-            border: 1px dashed #1a73e8;
-            padding: 8px 16px;
-            border-radius: 20px;
-            cursor: pointer;
-            font-size: 14px;
-        }
-        .btn-add-option:hover {
-            background: #d2e3fc;
-        }
-        .btn-save {
-            background: #1a73e8;
-            color: white;
-            border: none;
-            padding: 10px 24px;
-            border-radius: 8px;
-            font-weight: 500;
-            cursor: pointer;
-            font-size: 15px;
-        }
-        .btn-save:disabled {
-            opacity: 0.6;
-            cursor: not-allowed;
-        }
-        .save-hint {
-            color: #34a853;
-            font-size: 14px;
-            margin-left: 12px;
-        }
-        .empty-hint {
-            color: #999;
-            text-align: center;
-            padding: 60px 0;
-            font-size: 16px;
-        }
-    </style>
+
 </head>
 <body class="creator-body">
     <div id="app" data-story-id="{{ story_id }}"></div>
+
+    <!-- ===== 1. 先加载 Vue 核心库 ===== -->
     <script src="https://cdn.jsdelivr.net/npm/vue@3/dist/vue.global.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js"></script>
+
+    <!-- ===== 2. 加载 jsPlumb 核心库 ===== -->
+    <script src="https://cdn.jsdelivr.net/npm/jsplumb@2.15.6/dist/js/jsplumb.min.js"></script>
+
+    <!-- ===== 3. 加载自定义 API 和渲染器（顺序无关紧要，但需在 Vue 之后） ===== -->
+    <script src="{{ url_for('static', filename='js/story_api.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/jsplumb_renderer.js') }}"></script>
+
+    <!-- ===== 4. 最后加载编辑器组件 ===== -->
     <script src="{{ url_for('static', filename='js/creator.js') }}"></script>
 </body>
 </html>

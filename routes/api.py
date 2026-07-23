@@ -413,22 +413,21 @@ def create_page(story_id):
 
 @api_bp.route('/page/<int:page_id>', methods=['DELETE'])
 def delete_page(page_id):
-    """
-    删除页面 - 检查是否被其他页面引用
-    如果有其他页面的选项跳转到本页，则拒绝删除
-    """
     page = get_page_or_404(page_id)
     story_id = page.story_id
     local_id = page.local_page_id
 
-    # 检查是否有其他页面的选项跳转到本页
+    # 1. 检查是否有其他页面的选项跳转到本页
     all_pages = StoryPage.query.filter_by(story_id=story_id).all()
     referrers = []
-
     for p in all_pages:
         if p.global_id == page.global_id:
             continue
-        opts = parse_options(p.options)
+        # 解析 options JSON
+        try:
+            opts = json.loads(p.options) if p.options else []
+        except:
+            opts = []
         for opt in opts:
             if opt.get('jump_local_id') == local_id:
                 referrers.append(p.local_page_id)
@@ -439,14 +438,17 @@ def delete_page(page_id):
             'error': f'该页面被第 {", ".join(map(str, referrers))} 页引用，无法删除'
         }), 400
 
-    db.session.delete(page)
-
+    # 2. 清理 story.edges 中涉及该节点的边
     story = Story.query.get(story_id)
-    story.update_time = datetime.utcnow()
+    if story.edges:
+        new_edges = [e for e in story.edges if e.get('source') != local_id and e.get('target') != local_id]
+        story.edges = new_edges
+        story.update_time = datetime.utcnow()
 
+    # 3. 删除页面
+    db.session.delete(page)
     db.session.commit()
     return jsonify({'status': 'deleted'})
-
 
 # ============================================================
 # 图数据 API（ECharts 渲染）
@@ -494,3 +496,137 @@ def permanent_delete_story(story_id):
     db.session.delete(story)
     db.session.commit()
     return jsonify({'status': 'permanently_deleted'})
+
+
+@api_bp.route('/story/<int:story_id>/graph', methods=['PUT'])
+def save_graph(story_id):
+    """
+    保存故事图数据：节点坐标和连线信息
+    请求体：{ nodes: [{id, pos_x, pos_y}], edges: [{source, target, sourceAnchor, targetAnchor, label}] }
+    """
+    if not session.get('authenticated'):
+        return jsonify({'error': '未登录'}), 401
+
+    story = get_story_or_404(story_id)
+    data = request.json
+    print("📥 接收到的图数据:", data)  # 调试日志
+
+    # 1. 更新节点坐标 (pos_x, pos_y)
+    nodes = data.get('nodes', [])
+    for node_data in nodes:
+        node_id = node_data.get('id')
+        if node_id is None:
+            continue
+        page = StoryPage.query.filter_by(story_id=story_id, local_page_id=node_id).first()
+        if page:
+            page.pos_x = node_data.get('pos_x', page.pos_x)
+            page.pos_y = node_data.get('pos_y', page.pos_y)
+
+    # 2. 更新连线数据 (edges)
+    edges = data.get('edges', [])
+    # 可对 edges 做简单校验（确保 source/target 存在）
+    story.edges = edges
+    story.update_time = datetime.utcnow()
+
+    db.session.commit()
+    return jsonify({'status': 'success'})
+
+@api_bp.route('/backup/export', methods=['GET'])
+def export_data():
+    """导出所有故事数据（含页面和连线）"""
+    if not session.get('authenticated'):
+        return jsonify({'error': '未登录'}), 401
+
+    stories = Story.query.filter_by(is_deleted=0).all()
+    export_data = []
+
+    for s in stories:
+        pages = StoryPage.query.filter_by(story_id=s.story_id).all()
+        story_data = {
+            'story': {
+                'story_id': s.story_id,
+                'story_name': s.story_name,
+                'story_desc': s.story_desc,
+                'is_published': s.is_published,
+                'create_time': s.create_time.isoformat(),
+                'update_time': s.update_time.isoformat(),
+                'edges': s.edges  # 导出连线
+            },
+            'pages': [{
+                'local_page_id': p.local_page_id,
+                'page_type': p.page_type,
+                'content': p.content,
+                'options': p.options,
+                'is_true_ending': p.is_true_ending,
+                'pos_x': p.pos_x,
+                'pos_y': p.pos_y,
+                'draft_content': p.draft_content,
+                'draft_options': p.draft_options,
+                'has_draft': p.has_draft
+            } for p in pages]
+        }
+        export_data.append(story_data)
+
+    response = jsonify(export_data)
+    response.headers['Content-Disposition'] = 'attachment; filename=backup.json'
+    response.headers['Content-Type'] = 'application/json; charset=utf-8'
+    return response
+
+@api_bp.route('/backup/import', methods=['POST'])
+def import_data():
+    """导入数据（覆盖现有数据）"""
+    if not session.get('authenticated'):
+        return jsonify({'error': '未登录'}), 401
+
+    data = request.json
+    if not isinstance(data, list):
+        return jsonify({'error': '数据格式无效，应为数组'}), 400
+
+    # 开启事务，导入失败时回滚
+    try:
+        for item in data:
+            story_data = item.get('story')
+            pages_data = item.get('pages', [])
+
+            # 检查是否已存在，若存在则删除（级联删除）
+            existing = Story.query.filter_by(story_id=story_data['story_id']).first()
+            if existing:
+                # 若要覆盖，先删除旧数据
+                db.session.delete(existing)
+                db.session.commit()
+
+            # 创建新故事（保持原 ID）
+            story = Story(
+                story_id=story_data['story_id'],
+                story_name=story_data['story_name'],
+                story_desc=story_data['story_desc'],
+                is_published=story_data.get('is_published', 0),
+                create_time=datetime.fromisoformat(story_data['create_time']),
+                update_time=datetime.fromisoformat(story_data['update_time']),
+                edges=story_data.get('edges', [])
+            )
+            db.session.add(story)
+            db.session.flush()  # 获得 story_id
+
+            for p in pages_data:
+                page = StoryPage(
+                    story_id=story.story_id,
+                    local_page_id=p['local_page_id'],
+                    page_type=p.get('page_type', 'process'),
+                    content=p.get('content', ''),
+                    options=p.get('options', []),
+                    is_true_ending=p.get('is_true_ending', 0),
+                    pos_x=p.get('pos_x', 50),
+                    pos_y=p.get('pos_y', 50),
+                    draft_content=p.get('draft_content'),
+                    draft_options=p.get('draft_options'),
+                    has_draft=p.get('has_draft', 0)
+                )
+                db.session.add(page)
+
+        db.session.commit()
+        return jsonify({'imported': len(data)})
+
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': f'导入失败: {str(e)}'}), 500

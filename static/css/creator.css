@@ -495,3 +495,65 @@ body.creator-body {
         opacity: 1;
     }
 }
+
+
+/* ===== jsPlumb 节点样式 ===== */
+.node {
+    position: absolute;
+    width: 140px;
+    height: 50px;
+    background: #5470c6;
+    color: white;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: grab;
+    border: 2px solid #fff;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+    z-index: 1;
+    user-select: none;
+    padding: 0 8px;
+    text-align: center;
+}
+.node:hover {
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+.node.end-good {
+    background: #28a745;
+}
+.node.end-bad {
+    background: #dc3545;
+}
+.jtk-connector {
+    z-index: 2;
+}
+.jtk-endpoint {
+    z-index: 3;
+}
+.jsplumb-label {
+    background: rgba(255, 255, 255, 0.9);
+    padding: 2px 8px;
+    border-radius: 4px;
+    border: 1px solid #3498db;
+    font-size: 12px;
+    color: #2c3e50;
+    font-weight: bold;
+    white-space: nowrap;
+    cursor: pointer;
+}
+
+#chart-container {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+}
+
+/* 端点高亮（选中状态） */
+.jtk-endpoint.selected circle {
+    fill: #ff6b6b !important;
+    stroke: #ff6b6b !important;
+}

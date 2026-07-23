@@ -16,6 +16,7 @@ class Story(db.Model):
     has_draft = db.Column(db.Boolean, default=0)
     update_time = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     is_deleted = db.Column(db.Boolean, default=0)
+    edges = db.Column(db.JSON, default=list)
 
     pages = db.relationship(
         'StoryPage',

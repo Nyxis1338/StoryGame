@@ -77,6 +77,15 @@ def settings_page():
 def trash_page():
     return render_template('trash.html')
 
+# ============================================================
+# 测试路由（临时）
+# ============================================================
+
+@app.route('/creator_test')
+def creator_test():
+    """分栏拖拽测试页面（无 ECharts）"""
+    return render_template('creator_test.html')
+
 
 # ============================================================
 # 启动入口
