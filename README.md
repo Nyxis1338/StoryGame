@@ -257,3 +257,36 @@ A: 检查是否创建了起始页（`local_page_id=1`），如果没有起始页
 ---
 
 **🎉 祝你创作愉快！** 如果有任何问题，欢迎通过 Issue 联系。
+```
+StoryGame
+├─ app.py
+├─ game.db
+├─ models.py
+├─ README.md
+├─ requirements.txt
+├─ routes
+│  ├─ api.py
+│  └─ __init__.py
+├─ schema.sql
+├─ static
+│  ├─ css
+│  │  ├─ creator.css
+│  │  └─ reader.css
+│  └─ js
+│     ├─ creator.js
+│     ├─ creator_index.js
+│     ├─ index.js
+│     ├─ jsplumb_renderer.js
+│     ├─ login.js
+│     ├─ reader.js
+│     └─ story_api.js
+├─ templates
+│  ├─ creator.html
+│  ├─ creator_index.html
+│  ├─ index.html
+│  ├─ login.html
+│  └─ reader.html
+└─ utils
+   └─ graph_helper.py
+
+```

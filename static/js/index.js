@@ -1,4 +1,3 @@
-
 const { createApp, ref, onMounted } = Vue;
 
 createApp({
@@ -20,7 +19,8 @@ createApp({
             if (!hasMore.value) return;
 
             loading.value = true;
-            let url = `/api/stories?page=${page.value}&per_page=${perPage}`;
+            // ✅ 显式添加 status=published，确保只读取已发布故事
+            let url = `/api/stories?page=${page.value}&per_page=${perPage}&status=published`;
             if (keyword.value.trim()) {
                 url += `&q=${encodeURIComponent(keyword.value.trim())}`;
             }
@@ -61,6 +61,5 @@ createApp({
 
         return { stories, loading, hasMore, keyword, search, formatDate };
     },
-    // 引用外部模板
     template: '#index-template'
 }).mount('#app');

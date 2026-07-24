@@ -25,13 +25,16 @@ createApp({
                     this.currentLocalId = page.local_id || localId;
                     this.currentContent = marked.parse(page.content || '');
                     this.currentOptions = page.options || [];
-                    this.isEnding = page.page_type === 'ending';
-                    this.isTrueEnding = page.is_true_ending || false;
+
+                    // ✅ 适配新的 page_type 值
+                    this.isEnding = (page.page_type === 'true_ending' || page.page_type === 'false_ending');
+                    this.isTrueEnding = (page.page_type === 'true_ending');
                 })
                 .catch(err => {
                     this.currentContent = `<p style="color:red;">⚠️ ${err.message || '加载失败'}</p>`;
                     this.currentOptions = [];
                     this.isEnding = true;
+                    this.isTrueEnding = false;
                 });
         },
 

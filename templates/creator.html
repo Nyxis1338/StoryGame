@@ -4,7 +4,6 @@
     <meta charset="UTF-8">
     <title>故事编辑器</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/creator.css') }}">
-
 </head>
 <body class="creator-body">
     <div id="app" data-story-id="{{ story_id }}"></div>
@@ -12,7 +11,6 @@
     <!-- ===== 模板已迁移至此处 ===== -->
     {% raw %}
     <template id="creator-template">
-
         <div style="display:flex; flex-direction:column; height:100vh; background:#f0f2f5;">
             <!-- 导航栏 -->
             <div style="display:flex; justify-content:space-between; align-items:center; padding:12px 24px; background:white; border-bottom:1px solid #e0e0e0; flex-shrink:0; z-index:100;">
@@ -50,7 +48,7 @@
                 <!-- 右侧：编辑面板 -->
                 <div style="height:100%; background:white; border-radius:16px; box-shadow:0 2px 8px rgba(0,0,0,0.06); padding:24px 28px; overflow-y:auto; min-width:200px; flex:1;" :style="{ width: (100 - leftWidth) + '%' }">
                     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
-                        <span style="font-weight:600; font-size:16px;" v-if="currentPage">编辑第 {{ currentPage.local_id }} 页</span>
+                        <span style="font-weight:600; font-size:16px;" v-if="currentPage">编辑第 {{ currentPage.page_id }} 页</span>
                         <span style="font-weight:600; font-size:16px;" v-else>编辑面板</span>
                         <div>
                             <button @click="addNewPage" style="background:#1a73e8; color:white; border:none; padding:4px 12px; border-radius:6px; cursor:pointer; font-size:13px;">➕ 新增子页</button>
@@ -59,10 +57,13 @@
                     </div>
 
                     <div v-if="currentPage">
+                        <!-- 正文 -->
                         <div style="margin-bottom:18px;">
                             <label style="display:block; font-weight:500; font-size:14px; color:#333; margin-bottom:4px;">正文 (支持Markdown)</label>
                             <textarea v-model="currentPage.content" @input="autoSave" style="width:100%; padding:10px 14px; border:1px solid #ddd; border-radius:8px; font-size:14px; font-family:inherit; box-sizing:border-box; min-height:120px; resize:vertical;"></textarea>
                         </div>
+
+                        <!-- 页面类型 -->
                         <div style="margin-bottom:18px;">
                             <label style="display:block; font-weight:500; font-size:14px; color:#333; margin-bottom:4px;">页面类型</label>
                             <select v-model="currentPage.page_type" @change="autoSave" style="width:100%; padding:10px 14px; border:1px solid #ddd; border-radius:8px; font-size:14px; font-family:inherit; box-sizing:border-box;">
@@ -72,6 +73,7 @@
                             </select>
                         </div>
 
+                        <!-- 分支选项 -->
                         <div style="margin-bottom:18px;">
                             <label style="display:block; font-weight:500; font-size:14px; color:#333; margin-bottom:4px;">分支选项</label>
                             <div v-for="(opt, idx) in currentPage.options" :key="idx" style="display:flex; gap:8px; align-items:center; background:#f8f9fa; padding:8px 12px; border-radius:8px; margin-bottom:8px;">
@@ -81,6 +83,36 @@
                             </div>
                             <button @click="addOption" style="background:#e8f0fe; color:#1a73e8; border:1px dashed #1a73e8; padding:8px 16px; border-radius:20px; cursor:pointer; font-size:14px;">➕ 添加选项</button>
                         </div>
+
+                        <!-- 连线设置（在分支选项下方） -->
+                        <div v-if="currentEdge" style="margin-top:20px; border-top:2px solid #e0e0e0; padding-top:16px;">
+                            <h4 style="margin:0 0 10px;">🔗 连线设置</h4>
+                            <div style="margin-bottom:10px;">
+                                <label style="display:block; font-weight:500; font-size:13px; color:#555;">源锚点</label>
+                                <select v-model="edgeSourceAnchor" style="width:100%; padding:6px; border:1px solid #ccc; border-radius:4px;">
+                                    <option value="top">上</option>
+                                    <option value="bottom">下</option>
+                                    <option value="left">左</option>
+                                    <option value="right">右</option>
+                                </select>
+                            </div>
+                            <div style="margin-bottom:10px;">
+                                <label style="display:block; font-weight:500; font-size:13px; color:#555;">目标锚点</label>
+                                <select v-model="edgeTargetAnchor" style="width:100%; padding:6px; border:1px solid #ccc; border-radius:4px;">
+                                    <option value="top">上</option>
+                                    <option value="bottom">下</option>
+                                    <option value="left">左</option>
+                                    <option value="right">右</option>
+                                </select>
+                            </div>
+
+                            <div style="display:flex; gap:8px;">
+                                <button @click="saveEdge" class="btn-primary" style="flex:1;">💾 保存锚点</button>
+                                <button @click="deleteEdge" class="btn-danger" style="flex:1;">🗑️ 删除连线</button>
+                            </div>
+                        </div>
+
+                        <!-- 保存按钮 -->
                         <div style="margin-top:10px;">
                             <button @click="savePage" :disabled="saving" style="background:#1a73e8; color:white; border:none; padding:10px 24px; border-radius:8px; font-weight:500; cursor:pointer; font-size:15px;" :style="{opacity: saving ? 0.6 : 1}">{{ saving ? '保存中...' : '手动保存' }}</button>
                             <span v-show="saved" style="color:#34a853; font-size:14px; margin-left:12px;">✅ 已保存</span>
@@ -92,7 +124,7 @@
                 </div>
             </div>
 
-            <!-- 模态框 -->
+            <!-- 全局模态框（确认对话框） -->
             <div v-if="modalVisible" style="position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.5); display:flex; align-items:center; justify-content:center; z-index:9999;">
                 <div style="background:white; border-radius:16px; max-width:420px; width:90%; padding:24px; box-shadow:0 20px 60px rgba(0,0,0,0.3);">
                     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
@@ -133,41 +165,7 @@
                     </div>
                 </div>
             </div>
-
         </div>
-
-        <!-- 连线设置 -->
-        <div v-if="currentEdge" style="margin-top:20px; border-top:2px solid #e0e0e0; padding-top:16px;">
-            <h4 style="margin:0 0 10px;">🔗 连线设置</h4>
-            <div style="margin-bottom:10px;">
-                <label style="display:block; font-weight:500; font-size:13px; color:#555;">源锚点</label>
-                <select v-model="edgeSourceAnchor" style="width:100%; padding:6px; border:1px solid #ccc; border-radius:4px;">
-                    <option value="top">上</option>
-                    <option value="bottom">下</option>
-                    <option value="left">左</option>
-                    <option value="right">右</option>
-                </select>
-            </div>
-            <div style="margin-bottom:10px;">
-                <label style="display:block; font-weight:500; font-size:13px; color:#555;">目标锚点</label>
-                <select v-model="edgeTargetAnchor" style="width:100%; padding:6px; border:1px solid #ccc; border-radius:4px;">
-                    <option value="top">上</option>
-                    <option value="bottom">下</option>
-                    <option value="left">左</option>
-                    <option value="right">右</option>
-                </select>
-            </div>
-            <div style="margin-bottom:10px;">
-                <label style="display:block; font-weight:500; font-size:13px; color:#555;">标签文字</label>
-                <input type="text" v-model="edgeLabel" style="width:100%; padding:6px; border:1px solid #ccc; border-radius:4px;">
-            </div>
-            <div style="display:flex; gap:8px;">
-                <button @click="saveEdge" class="btn-primary" style="flex:1;">💾 保存锚点</button>
-                <button @click="deleteEdge" class="btn-danger" style="flex:1;">🗑️ 删除连线</button>
-            </div>
-        </div>
-    
-
     </template>
     {% endraw %}
 
@@ -177,7 +175,7 @@
     <!-- ===== 2. 加载 jsPlumb 核心库 ===== -->
     <script src="https://cdn.jsdelivr.net/npm/jsplumb@2.15.6/dist/js/jsplumb.min.js"></script>
 
-    <!-- ===== 3. 加载自定义 API 和渲染器（顺序无关紧要，但需在 Vue 之后） ===== -->
+    <!-- ===== 3. 加载自定义 API 和渲染器 ===== -->
     <script src="{{ url_for('static', filename='js/story_api.js') }}"></script>
     <script src="{{ url_for('static', filename='js/jsplumb_renderer.js') }}"></script>
 

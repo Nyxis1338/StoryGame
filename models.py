@@ -1,6 +1,6 @@
 import hashlib
 from flask_sqlalchemy import SQLAlchemy
-from datetime import datetime
+from datetime import datetime, timezone
 
 db = SQLAlchemy()
 
@@ -12,8 +12,8 @@ class Story(db.Model):
     story_name = db.Column(db.String(100), nullable=False)
     story_desc = db.Column(db.Text, nullable=False)
     is_published = db.Column(db.Boolean, default=0)
-    create_time = db.Column(db.DateTime, default=datetime.utcnow)
-    update_time = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    create_time = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+    update_time = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
     is_deleted = db.Column(db.Boolean, default=0)
 
     # 关联关系
@@ -47,8 +47,8 @@ class StoryPageOption(db.Model):
     source_page = db.Column(db.Integer, nullable=False)
     target_page = db.Column(db.Integer, nullable=False)
     option_text = db.Column(db.Text, nullable=False)
-    source_anchor = db.Column(db.String(10), default='right')
-    target_anchor = db.Column(db.String(10), default='left')
+    source_anchor = db.Column(db.String(10), default='bottom')
+    target_anchor = db.Column(db.String(10), default='top')
 
     # 外键约束（确保 page_id 存在于 story_page 中）
     __table_args__ = (

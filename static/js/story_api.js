@@ -96,5 +96,61 @@ const StoryAPI = {
         });
         if (!res.ok) throw new Error(`更新选项失败 (${res.status})`);
         return res.json();
-    }
+    },
+
+    // 新增到 story_api.js
+
+    async createStory() {
+        const res = await fetch('/api/story', { method: 'POST' });
+        if (!res.ok) throw new Error(`创建故事失败 (${res.status})`);
+        return res.json();
+    },
+
+    async getStories(params) {
+        const query = new URLSearchParams(params).toString();
+        const res = await fetch(`/api/stories?${query}`);
+        if (!res.ok) throw new Error(`获取故事列表失败 (${res.status})`);
+        return res.json();
+    },
+
+    async updateStory(storyId, data) {
+        const res = await fetch(`/api/story/${storyId}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data)
+        });
+        if (!res.ok) throw new Error(`更新故事失败 (${res.status})`);
+        return res.json();
+    },
+
+    async deleteStory(storyId) {
+        const res = await fetch(`/api/story/${storyId}`, { method: 'DELETE' });
+        if (!res.ok) throw new Error(`删除故事失败 (${res.status})`);
+        return res.json();
+    },
+
+    async restoreStory(storyId) {
+        const res = await fetch(`/api/story/${storyId}/restore`, { method: 'POST' });
+        if (!res.ok) throw new Error(`恢复故事失败 (${res.status})`);
+        return res.json();
+    },
+
+    async permanentDeleteStory(storyId) {
+        const res = await fetch(`/api/story/${storyId}/permanent`, { method: 'DELETE' });
+        if (!res.ok) throw new Error(`永久删除故事失败 (${res.status})`);
+        return res.json();
+    },
+
+    async getTrash() {
+        const res = await fetch('/api/trash');
+        if (!res.ok) throw new Error(`获取回收站失败 (${res.status})`);
+        return res.json();
+    },
+
+    async logout() {
+        const res = await fetch('/api/auth/logout', { method: 'POST' });
+        if (!res.ok) throw new Error(`退出登录失败 (${res.status})`);
+        return res.json();
+    },
+
 };

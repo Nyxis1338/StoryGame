@@ -39,16 +39,19 @@ def login_required(f):
 
 @app.route('/')
 def index():
+    """读者首页 - 故事列表"""
     return render_template('index.html')
 
 
 @app.route('/reader/<int:story_id>')
 def reader_page(story_id):
+    """读者阅读页"""
     return render_template('reader.html', story_id=story_id)
 
 
 @app.route('/login')
 def login_page():
+    """登录页面（已登录则跳转到工作台）"""
     if session.get('authenticated'):
         return redirect(url_for('creator_index'))
     return render_template('login.html')
@@ -57,28 +60,37 @@ def login_page():
 @app.route('/creator')
 @login_required
 def creator_index():
+    """创作者工作台（含故事列表、回收站、设置、备份）"""
     return render_template('creator_index.html')
 
 
 @app.route('/creator/<int:story_id>')
 @login_required
 def creator_editor(story_id):
+    """故事编辑器（思维导图 + 页面编辑）"""
     return render_template('creator.html', story_id=story_id)
 
+
+# ============================================================
+# 废弃路由（重定向到工作台）
+# ============================================================
 
 @app.route('/settings')
 @login_required
 def settings_page():
-    return render_template('settings.html')
+    """修改密码（已整合到工作台，重定向）"""
+    return redirect(url_for('creator_index'))
 
 
 @app.route('/trash')
 @login_required
 def trash_page():
-    return render_template('trash.html')
+    """回收站（已整合到工作台，重定向）"""
+    return redirect(url_for('creator_index'))
+
 
 # ============================================================
-# 测试路由（临时）
+# 测试路由（可选，保留用于开发调试）
 # ============================================================
 
 @app.route('/creator_test')
@@ -105,8 +117,7 @@ if __name__ == '__main__':
     print(f"     📖 读者首页:  http://127.0.0.1:5000/")
     print(f"     ✍️ 创作者工作台: http://127.0.0.1:5000/creator")
     print(f"     🔐 登录页面:  http://127.0.0.1:5000/login")
-    print(f"     ⚙️ 修改密码:  http://127.0.0.1:5000/settings")
-    print(f"     🗑️ 回收站:    http://127.0.0.1:5000/trash")
+    print(f"     🧪 分栏测试:  http://127.0.0.1:5000/creator_test")
     print("=" * 60)
     print("  💡 按 Ctrl+C 停止服务")
     print("=" * 60 + "\n")

@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <title>✍️ 创作者工作台</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/creator.css') }}">
-
+    <!-- 侧边栏与主内容区样式已在 creator.css 中定义 -->
 </head>
 <body>
     <div id="app"></div>
@@ -35,7 +35,7 @@
 
             <!-- 主内容区 -->
             <div class="main-content">
-                <!-- 故事列表 -->
+                <!-- ===== 故事列表 ===== -->
                 <div v-if="currentView === 'stories'">
                     <div class="creator-header">
                         <h1>📖 我的故事</h1>
@@ -43,7 +43,6 @@
                     </div>
                     <div class="creator-toolbar">
                         <button class="filter-btn" :class="{active: filterStatus === 'published'}" @click="setFilter('published')">已发布</button>
-                        
                         <button class="filter-btn" :class="{active: filterStatus === 'draft'}" @click="setFilter('draft')">草稿</button>
                         <button class="filter-btn" :class="{active: filterStatus === 'all'}" @click="setFilter('all')">全部</button>
                         <input type="text" class="search-input" v-model="keyword" placeholder="搜索故事名..." @keydown.enter="search">
@@ -70,9 +69,8 @@
                     <div v-if="!hasMore && stories.length === 0" class="creator-no-more">暂无故事，点击「新建故事」开始创作</div>
                 </div>
 
-                <!-- 回收站 -->
+                <!-- ===== 回收站 ===== -->
                 <div v-if="currentView === 'trash'">
-
                     <h1>🗑️ 回收站</h1>
                     <div v-if="trashLoading" class="creator-loading">加载中...</div>
                     <div v-else-if="trashItems.length === 0" class="creator-no-more">回收站为空</div>
@@ -89,10 +87,9 @@
                             </div>
                         </div>
                     </div>
-
                 </div>
 
-                <!-- 设置 -->
+                <!-- ===== 设置（修改密码） ===== -->
                 <div v-if="currentView === 'settings'">
                     <div class="settings-panel">
                         <h1>⚙️ 修改密码</h1>
@@ -115,12 +112,12 @@
                             {{ loading ? '修改中...' : '确认修改' }}
                         </button>
 
-                        <p v-if="error" class="error-text">{{ error }}</p>
-                        <p v-if="success" class="success-text">{{ success }}</p>
+                        <p v-if="passwordError" class="error-text">{{ passwordError }}</p>
+                        <p v-if="passwordMessage" class="success-text">{{ passwordMessage }}</p>
                     </div>
                 </div>
 
-                <!-- 备份 -->
+                <!-- ===== 数据备份 ===== -->
                 <div v-if="currentView === 'backup'">
                     <h1>💾 数据备份</h1>
                     <p>导出所有故事数据为 JSON 文件，或从 JSON 文件导入恢复数据。</p>
@@ -131,30 +128,48 @@
                     </div>
                 </div>
             </div>
-        </div>
 
-        <!-- 编辑故事模态框 -->
-        <div v-if="editModalVisible" class="modal-overlay" @click.self="editModalVisible = false">
-            <div class="modal-box">
-                <h3>编辑故事信息</h3>
-                <div class="form-group">
-                    <label>故事名称</label>
-                    <input type="text" v-model="editingStory.story_name" class="form-control">
+            <!-- ===== 编辑故事模态框 ===== -->
+            <div v-if="editModalVisible" class="modal-overlay" @click.self="editModalVisible = false">
+                <div class="modal-box">
+                    <h3>编辑故事信息</h3>
+                    <div class="form-group">
+                        <label>故事名称</label>
+                        <input type="text" v-model="editingStory.story_name" class="form-control">
+                    </div>
+                    <div class="form-group">
+                        <label>故事简介</label>
+                        <textarea v-model="editingStory.story_desc" class="form-control" rows="3"></textarea>
+                    </div>
+                    <div class="buttons">
+                        <button class="btn-cancel" @click="editModalVisible = false">取消</button>
+                        <button class="btn-primary" @click="saveStoryEdit">保存</button>
+                    </div>
                 </div>
-                <div class="form-group">
-                    <label>故事简介</label>
-                    <textarea v-model="editingStory.story_desc" class="form-control" rows="3"></textarea>
+            </div>
+
+            <!-- ===== 全局确认模态框 ===== -->
+            <div v-if="modalVisible" class="modal-overlay" @click.self="modalCancel">
+                <div class="modal-box">
+                    <h3>{{ modalTitle }}</h3>
+                    <p>{{ modalMessage }}</p>
+                    <div class="buttons">
+                        <button class="btn-cancel" @click="modalCancel">{{ modalCancelText }}</button>
+                        <button class="btn-primary" :class="{ danger: modalIsDanger }" @click="modalConfirm">{{ modalConfirmText }}</button>
+                    </div>
                 </div>
-                <div class="buttons">
-                    <button class="btn-cancel" @click="editModalVisible = false">取消</button>
-                    <button class="btn-primary" @click="saveStoryEdit">保存</button>
-                </div>
+            </div>
+
+            <!-- ===== Toast 消息 ===== -->
+            <div v-if="toastVisible" class="toast" :class="toastType">
+                {{ toastMessage }}
             </div>
         </div>
     </template>
     {% endraw %}
 
     <script src="https://cdn.jsdelivr.net/npm/vue@3/dist/vue.global.js"></script>
+    <script src="{{ url_for('static', filename='js/story_api.js') }}"></script>
     <script src="{{ url_for('static', filename='js/creator_index.js') }}"></script>
 </body>
 </html>

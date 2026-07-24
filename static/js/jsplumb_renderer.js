@@ -21,6 +21,7 @@ var JsPlumbRenderer = (function() {
 
         instance = jsPlumb.getInstance({
             Container: container,
+            // Anchor: "AutoDefault",  // 可选，如需自动锚点可启用
             DragOptions: { cursor: 'grab', zIndex: 2000 },
             Connector: ['Flowchart', { cornerRadius: 5 }],
             PaintStyle: { stroke: '#7f8c8d', strokeWidth: 2 },
@@ -31,7 +32,7 @@ var JsPlumbRenderer = (function() {
             ConnectionOverlays: [
                 ['Label', { label: '', cssClass: 'jsplumb-label', location: 0.5, id: 'label' }]
             ],
-            connectionsDetachable: false
+            // connectionsDetachable: false // 可根据需要启用
         });
 
         onNodeMoveCallback = callbacks.onNodeMove || null;
@@ -40,33 +41,6 @@ var JsPlumbRenderer = (function() {
         onNodeClickCallback = callbacks.onNodeClick || null;
         onEdgeClickCallback = callbacks.onEdgeClick || null;
 
-        // 在 init 或 renderGraph 中（确保只绑定一次）
-        instance.bind('click', function(connection, originalEvent) {
-            if (connection && connection.data && connection.data.option_id) {
-                var option_id = connection.data.option_id;
-                // 获取 source/target 信息
-                var ep1 = connection.endpoints[0];
-                var ep2 = connection.endpoints[1];
-                var sourceUuid = ep1.getUuid();
-                var targetUuid = ep2.getUuid();
-                var source = parseInt(sourceUuid.split('-')[1]);
-                var target = parseInt(targetUuid.split('-')[1]);
-                var sourceAnchor = sourceUuid.split('-')[2];
-                var targetAnchor = targetUuid.split('-')[2];
-                var label = connection.getOverlay('label') ? connection.getOverlay('label').getLabel() : '';
-                if (onEdgeClickCallback) {
-                    onEdgeClickCallback({
-                        option_id: option_id,
-                        source: source,
-                        target: target,
-                        label: label,
-                        sourceAnchor: sourceAnchor,
-                        targetAnchor: targetAnchor,
-                        connection: connection  // 保留以便后续操作
-                    });
-                }
-            }
-        });
 
         return instance;
     }
@@ -78,19 +52,16 @@ var JsPlumbRenderer = (function() {
             console.error('jsPlumb 未初始化');
             return;
         }
-        console.log('instance:', instance);
 
         // 清空旧内容
         instance.deleteEveryConnection();
         instance.deleteEveryEndpoint();
-        // 移除旧节点 DOM（保留容器）
         Object.values(nodeMap).forEach(el => {
             if (el.parentNode) el.parentNode.removeChild(el);
         });
         nodeMap = {};
         endpointUuidMap = {};
 
-        // 如果无节点，显示提示
         if (!nodes || nodes.length === 0) {
             console.warn('⚠️ 无节点数据，显示空状态');
             container.innerHTML = '<div style="padding:20px; color:#999; text-align:center;">暂无页面</div>';
@@ -104,44 +75,37 @@ var JsPlumbRenderer = (function() {
             el.id = 'node-' + id;
             el.className = 'node';
             el.textContent = node.label || ('第' + id + '页');
-            // 使用 pos_x, pos_y，若不存在则随机分配
             var x = node.pos_x || (100 + Math.random() * 300);
             var y = node.pos_y || (100 + Math.random() * 200);
             el.style.left = x + 'px';
             el.style.top = y + 'px';
             container.appendChild(el);
             nodeMap[id] = el;
-            // instance.revalidate(el);
-            console.log(`✅ 创建节点 #${id}，位置: (${x}, ${y})`);
 
-            el.className = 'node';
             if (id === selectedNodeId) {
                 el.classList.add('selected-node');
             }
 
-            // 在 renderGraph 中，创建节点后添加：
+            // 节点点击事件
             el.addEventListener('click', function(e) {
                 e.stopPropagation();
                 var nodeId = parseInt(this.id.replace('node-', ''));
                 console.log('🖱️ 点击节点 #' + nodeId);
-                // 移除所有节点的高亮
                 document.querySelectorAll('.node').forEach(function(n) {
                     n.classList.remove('selected-node');
                 });
-                // 高亮当前节点
                 this.classList.add('selected-node');
                 if (onNodeClickCallback) {
                     onNodeClickCallback(nodeId);
                 }
             });
 
-            // 添加四个方向的端点（上、下、左、右）
+            // 添加四个方向的端点
             var dirs = ['top', 'bottom', 'left', 'right'];
             var uuids = {};
             dirs.forEach(function(dir) {
                 var uuid = 'node-' + id + '-' + dir;
                 uuids[dir] = uuid;
-                // 明确声明 ep，确保作用域在 forEach 内
                 var ep = instance.addEndpoint(el, {
                     uuid: uuid,
                     anchor: dir.charAt(0).toUpperCase() + dir.slice(1),
@@ -151,7 +115,6 @@ var JsPlumbRenderer = (function() {
                     dragOptions: { allowDetach: false }
                 });
                 if (ep) {
-                    // ✅ 传递事件对象
                     ep.bind('click', function(endpoint, originalEvent) {
                         handleEndpointClick(endpoint, originalEvent);
                     });
@@ -169,7 +132,6 @@ var JsPlumbRenderer = (function() {
             instance.draggable(nodeEls, {
                 containment: container,
                 grid: [10, 10],
-                // 禁止拖拽端点时断开连接
                 allowDetach: false,
                 stop: function(params) {
                     var el = params.el;
@@ -185,50 +147,73 @@ var JsPlumbRenderer = (function() {
             console.log('✅ 所有节点已启用拖拽');
         }
 
-        // 建立连线（若存在 edges 数据）
+        // 建立连线
         if (edges && edges.length) {
-                console.log(`🔗 开始建立 ${edges.length} 条连线`);
-                edges.forEach(function(edge) {  // 注意：只声明 edge，不声明 index
-                    var sourceUuid = 'node-' + edge.source + '-' + (edge.sourceAnchor || 'right');
-                    var targetUuid = 'node-' + edge.target + '-' + (edge.targetAnchor || 'left');
-                    try {
-                        var conn = instance.connect({
-                            uuids: [sourceUuid, targetUuid],
-                            paintStyle: { stroke: getRandomColor(), strokeWidth: 2 },
-                            data: { option_id: edge.option_id }  // ✅ 存储 option_id
+            console.log(`🔗 开始建立 ${edges.length} 条连线`);
+            edges.forEach(function(edge) {
+                var sourceUuid = 'node-' + edge.source + '-' + (edge.sourceAnchor || 'right');
+                var targetUuid = 'node-' + edge.target + '-' + (edge.targetAnchor || 'left');
+                try {
+                    var conn = instance.connect({
+                        uuids: [sourceUuid, targetUuid],
+                        paintStyle: { stroke: getRandomColor(), strokeWidth: 2 }
+                        // 不再使用 data
+                    });
+                    if (conn) {
+                        var label = edge.label || '连线';
+                        var overlay = conn.getOverlay('label');
+                        if (overlay) overlay.setLabel(label);
+                        // 存储 option_id 到 connection 对象（自定义属性）
+                        conn.option_id = edge.option_id;  // 直接挂载
+                        // 为每条连线绑定点击事件（替代全局 bind）
+                        conn.bind('click', function(connection) {
+                            // 在此处触发回调，传递 option_id
+                            if (onEdgeClickCallback) {
+                                var ep1 = connection.endpoints[0];
+                                var ep2 = connection.endpoints[1];
+                                var sourceUuid = ep1.getUuid();
+                                var targetUuid = ep2.getUuid();
+                                var source = parseInt(sourceUuid.split('-')[1]);
+                                var target = parseInt(targetUuid.split('-')[1]);
+                                var sourceAnchor = sourceUuid.split('-')[2];
+                                var targetAnchor = targetUuid.split('-')[2];
+                                var label = connection.getOverlay('label') ? connection.getOverlay('label').getLabel() : '';
+                                onEdgeClickCallback({
+                                    option_id: connection.option_id,  // 从自定义属性获取
+                                    source: source,
+                                    target: target,
+                                    label: label,
+                                    sourceAnchor: sourceAnchor,
+                                    targetAnchor: targetAnchor,
+                                    connection: connection
+                                });
+                            }
                         });
-                        if (conn) {
-                            var label = edge.label || '连线';
-                            var overlay = conn.getOverlay('label');
-                            if (overlay) overlay.setLabel(label);
-                            console.log(`  ✅ 连线 ${edge.source}→${edge.target} (${label})`);
-                        }
-                    } catch (e) {
-                        // 此处不使用任何未定义变量，只输出 edge 信息
-                        console.warn(`  ❌ 连线失败: ${edge.source}→${edge.target}`, e);
+                        console.log(`  ✅ 连线 ${edge.source}→${edge.target} (${label})`);
                     }
-                });
-            }
+                } catch (e) {
+                    console.warn(`  ❌ 连线失败: ${edge.source}→${edge.target}`, e);
+                }
+            });
+        }
 
-        // 刷新画布
         instance.repaintEverything();
         console.log('✅ renderGraph 完成');
     }
 
-
+    // 处理端点点击（用于创建或删除连接）
     function handleEndpointClick(endpoint, originalEvent) {
         // 过滤连线点击（避免误触端点）
         if (originalEvent && originalEvent.target && originalEvent.target.closest('.jtk-connector')) {
             return;
         }
-        // 如果没有选中的端点，则选中当前端点
+
         if (!selectedEndpoint) {
             selectedEndpoint = endpoint;
             endpoint.addClass('selected');
             return;
         }
 
-        // 点击同一个端点，取消选中
         if (selectedEndpoint === endpoint) {
             endpoint.removeClass('selected');
             selectedEndpoint = null;
@@ -238,7 +223,6 @@ var JsPlumbRenderer = (function() {
         var sourceEp = selectedEndpoint;
         var targetEp = endpoint;
 
-        // 禁止自连接（同一节点）
         var sourceNodeId = sourceEp.elementId.replace('node-', '');
         var targetNodeId = targetEp.elementId.replace('node-', '');
         if (sourceNodeId === targetNodeId) {
@@ -248,13 +232,10 @@ var JsPlumbRenderer = (function() {
             return;
         }
 
-        // 检查是否已存在连接
         var existingConn = findConnectionBetweenEndpoints(sourceEp, targetEp);
         if (existingConn) {
-            // 已存在，询问是否删除
             if (confirm('该连接已存在，是否删除？')) {
                 instance.deleteConnection(existingConn);
-                // 触发回调（通知外部更新 options）
                 if (onOptionChangeCallback) {
                     onOptionChangeCallback(
                         parseInt(sourceNodeId),
@@ -265,7 +246,6 @@ var JsPlumbRenderer = (function() {
                 }
             }
         } else {
-            // 创建新连接
             var color = getRandomColor();
             var conn = instance.connect({
                 uuids: [sourceEp.getUuid(), targetEp.getUuid()],
@@ -275,7 +255,6 @@ var JsPlumbRenderer = (function() {
                 var label = '新连线';
                 var overlay = conn.getOverlay('label');
                 if (overlay) overlay.setLabel(label);
-                // 触发回调（通知外部添加 options）
                 if (onOptionChangeCallback) {
                     onOptionChangeCallback(
                         parseInt(sourceNodeId),
@@ -287,12 +266,11 @@ var JsPlumbRenderer = (function() {
             }
         }
 
-        // 清除选中状态
         sourceEp.removeClass('selected');
         selectedEndpoint = null;
     }
 
-
+    // 查找两个端点之间的连接
     function findConnectionBetweenEndpoints(ep1, ep2) {
         var uuid1 = ep1.getUuid();
         var uuid2 = ep2.getUuid();
@@ -323,12 +301,10 @@ var JsPlumbRenderer = (function() {
             });
         });
 
-        // ✅ 确保 instance 存在
         if (!instance) {
             return { nodes: nodesData, edges: [] };
         }
 
-        // ✅ 关键修复：获取所有连接
         var connections = instance.getConnections();
         var edgesData = connections.map(function(conn) {
             var ep1 = conn.endpoints[0];
@@ -352,7 +328,7 @@ var JsPlumbRenderer = (function() {
         return { nodes: nodesData, edges: edgesData };
     }
 
-    // 获取当前最大节点 ID（用于新增）
+    // 获取当前最大节点 ID
     function getMaxNodeId() {
         var ids = Object.keys(nodeMap).map(Number);
         return ids.length ? Math.max.apply(null, ids) : 0;
@@ -376,6 +352,7 @@ var JsPlumbRenderer = (function() {
         var uuids = {};
         dirs.forEach(function(dir) {
             var uuid = 'node-' + id + '-' + dir;
+            uuids[dir] = uuid;
             var ep = instance.addEndpoint(el, {
                 uuid: uuid,
                 anchor: dir.charAt(0).toUpperCase() + dir.slice(1),
@@ -385,7 +362,6 @@ var JsPlumbRenderer = (function() {
                 dragOptions: { allowDetach: false }
             });
             if (ep) {
-                // ✅ 传递事件对象
                 ep.bind('click', function(endpoint, originalEvent) {
                     handleEndpointClick(endpoint, originalEvent);
                 });
@@ -415,7 +391,6 @@ var JsPlumbRenderer = (function() {
     function deleteNode(nodeId) {
         var el = nodeMap[nodeId];
         if (!el) return false;
-        // 删除相关连接
         var connections = instance.getConnections();
         connections.forEach(function(conn) {
             var sourceId = conn.sourceId;
@@ -424,7 +399,6 @@ var JsPlumbRenderer = (function() {
                 instance.deleteConnection(conn);
             }
         });
-        // 删除端点
         var uuids = endpointUuidMap[nodeId];
         if (uuids) {
             Object.values(uuids).forEach(function(uuid) {
@@ -453,7 +427,6 @@ var JsPlumbRenderer = (function() {
             instance.deleteEveryEndpoint();
             instance.reset();
         }
-        // 清空容器
         if (container) {
             container.innerHTML = '';
         }
@@ -469,24 +442,24 @@ var JsPlumbRenderer = (function() {
         return colors[Math.floor(Math.random() * colors.length)];
     }
 
+    // 高亮节点
     function highlightNode(nodeId) {
-        // 清除之前的高亮
         if (selectedNodeId !== null) {
             var prevEl = nodeMap[selectedNodeId];
             if (prevEl) {
-                prevEl.classList.remove('node-selected');
+                prevEl.classList.remove('selected-node');
             }
         }
         selectedNodeId = nodeId;
         if (nodeId !== null) {
             var el = nodeMap[nodeId];
             if (el) {
-                el.classList.add('node-selected');
+                el.classList.add('selected-node');
             }
         }
     }
 
-    // 解决page_id自增生成节点，删除了不能再复用
+    // 获取下一个可用的 page_id（复用已删除的空缺）
     function getNextAvailablePageId() {
         var existingIds = Object.keys(nodeMap).map(Number);
         existingIds.sort((a, b) => a - b);
@@ -500,6 +473,7 @@ var JsPlumbRenderer = (function() {
         }
         return nextId;
     }
+
     // 公开 API
     return {
         init: init,
@@ -511,6 +485,6 @@ var JsPlumbRenderer = (function() {
         resize: resize,
         destroy: destroy,
         highlightNode: highlightNode,
-        getNextAvailablePageId:getNextAvailablePageId,
+        getNextAvailablePageId: getNextAvailablePageId,
     };
 })();

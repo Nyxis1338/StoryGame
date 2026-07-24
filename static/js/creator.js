@@ -35,16 +35,16 @@ const app = createApp({
             toastTimer: null,
             optionModalVisible: false,
             optionText: '',
+            sourcePageId: null,
             targetPageId: null,
 
             // 连线编辑
             currentEdge: null,
-            edgeSourceAnchor: 'right',
-            edgeTargetAnchor: 'left',
+            edgeSourceAnchor: 'bottom',
+            edgeTargetAnchor: 'top',
             edgeLabel: '',
             edgeOptionId: null,
-            edgeConnection: null,  // 引用 jsPlumb 连接对象
-
+            edgeConnection: null,
         };
     },
 
@@ -56,7 +56,8 @@ const app = createApp({
             StoryAPI.getPage(this.storyId, pageId)
                 .then(data => {
                     this.currentPage = data;
-                    this.currentPage.id = data.id;
+                    // 确保 local_id 或 page_id 存在
+                    this.currentPage.page_id = data.local_id || data.page_id || pageId;
                     this.hasUnsavedChanges = false;
                 })
                 .catch(err => {
@@ -66,7 +67,7 @@ const app = createApp({
         },
 
         // ============================================================
-        // 保存相关
+        // 保存相关（不再保存 options，由独立 API 管理）
         // ============================================================
         autoSave() {
             this.hasUnsavedChanges = true;
@@ -80,18 +81,25 @@ const app = createApp({
         savePage() {
             if (!this.currentPage) return;
             this.saving = true;
+
+            // 构建选项数据（包含 option_id 和 text）
+            const optionsData = (this.currentPage.options || []).map(opt => ({
+                option_id: opt.option_id,
+                text: opt.text
+            }));
+
             StoryAPI.updatePage(this.currentPage.id, {
                 content: this.currentPage.content,
-                options: this.currentPage.options,
                 page_type: this.currentPage.page_type,
-
+                options: optionsData,   // 新增：传递选项文本更新
             })
             .then(() => {
                 this.saving = false;
                 this.saved = true;
                 this.hasUnsavedChanges = false;
                 setTimeout(() => { this.saved = false; }, 2000);
-
+                // 刷新图数据，使节点预览和连线标签同步更新
+                this.refreshGraph();
                 this.showToast('✅ 保存成功', 'success');
             })
             .catch(err => {
@@ -101,15 +109,18 @@ const app = createApp({
             });
         },
 
+        // ============================================================
+        // 页面管理（新增/删除）
+        // ============================================================
         addNewPage() {
             if (!this.currentPage) return;
-            const newPageId = JsPlumbRenderer.getNextAvailablePageId();
+            // 获取下一个可用 ID（复用已删除的空缺）
             const maxId = JsPlumbRenderer.getMaxNodeId() + 1;
-
+            // 简单起见直接使用 maxId + 1，如需复用空缺可扩展
+            const newPageId = maxId || 1;
             StoryAPI.createPage(this.storyId, {
-                page_id: newPageId,           // ✅ 改为 page_id
+                page_id: newPageId,
                 content: '# 新页面\n请编辑内容',
-                // ❌ 移除 options 字段
                 pos_x: 100 + Math.random() * 200,
                 pos_y: 100 + Math.random() * 200
             })
@@ -123,8 +134,35 @@ const app = createApp({
             });
         },
 
+        deleteCurrentPage() {
+            if (!this.currentPage) return;
+            this.showConfirm(
+                '⚠️ 确认删除',
+                `确定删除第 ${this.currentPage.page_id} 页吗？此操作不可撤销！`,
+                '确定删除',
+                '取消',
+                true
+            ).then(confirmed => {
+                if (confirmed) {
+                    const nodeId = this.currentPage.page_id;
+                    StoryAPI.deletePage(this.currentPage.id)
+                        .then(() => {
+                            JsPlumbRenderer.deleteNode(nodeId);
+                            this.saveGraphData();
+                            this.currentPage = null;
+                            this.refreshGraph();
+                            this.showToast('✅ 页面已删除', 'success');
+                        })
+                        .catch(err => {
+                            console.error('删除失败:', err);
+                            this.showToast('❌ ' + err.message, 'error');
+                        });
+                }
+            });
+        },
+
         // ============================================================
-        // 选项管理
+        // 分支选项管理（通过 story_page_options 独立 API）
         // ============================================================
         addOption() {
             if (!this.currentPage) {
@@ -132,32 +170,9 @@ const app = createApp({
                 return;
             }
             this.optionText = '';
+            this.sourcePageId = null;
             this.targetPageId = null;
             this.optionModalVisible = true;
-
-        },
-
-        removeOption(idx) {
-            if (!this.currentPage) return;
-            const opt = this.currentPage.options[idx];
-            const sourcePage = this.currentPage.local_id;
-            const targetPage = opt.jump_local_id;
-            // 删除选项（调用 API）
-            StoryAPI.removeOption(this.storyId, {
-                source_page: sourcePage,
-                target_page: targetPage
-            })
-            .then(() => {
-                // 从本地移除
-                this.currentPage.options.splice(idx, 1);
-                // 刷新图
-                this.refreshGraph();
-                this.showToast('✅ 分支已删除', 'success');
-            })
-            .catch(err => {
-                console.error('删除分支失败:', err);
-                this.showToast('❌ 删除分支失败', 'error');
-            });
         },
 
         confirmAddOption() {
@@ -181,75 +196,56 @@ const app = createApp({
                     pos_x: 100 + Math.random() * 300,
                     pos_y: 100 + Math.random() * 200
                 })
-                .then(() => {
-                    // 添加选项
-                    return this.addOptionToCurrentPage(targetId);
-                })
+                .then(() => this.addOptionToCurrentPage(targetId))
                 .catch(err => {
                     console.error('创建页面失败:', err);
                     this.showToast('创建页面失败: ' + err.message, 'error');
                     this.optionModalVisible = false;
                 });
             } else {
-                // 直接添加选项
                 this.addOptionToCurrentPage(targetId);
             }
         },
 
         addOptionToCurrentPage(targetId) {
-            return StoryAPI.addOption(this.storyId, {
-                source_page: this.currentPage.local_id,
+            console.log('当前页面:', this.currentPage);
+            console.log('page_id:', this.currentPage?.page_id); 
+            StoryAPI.addOption(this.storyId, {
+                source_page: this.currentPage.page_id,
                 target_page: targetId,
                 option_text: this.optionText.trim(),
-                source_anchor: 'right',
-                target_anchor: 'left'
+                source_anchor: 'bottom',
+                target_anchor: 'top'
             })
             .then(() => {
-                // 刷新图数据和当前页面
                 this.refreshGraph();
-                this.loadPage(this.currentPage.local_id);
+                this.loadPage(this.currentPage.page_id);
                 this.showToast('✅ 分支添加成功', 'success');
                 this.optionModalVisible = false;
             })
             .catch(err => {
                 console.error('添加分支失败:', err);
                 this.showToast('添加分支失败: ' + err.message, 'error');
-                throw err; // 继续抛出，让上层处理
             });
         },
 
-        deleteCurrentPage() {
+        removeOption(idx) {
             if (!this.currentPage) return;
-            this.showConfirm(
-                '⚠️ 确认删除',
-                `确定删除第 ${this.currentPage.local_id} 页吗？此操作不可撤销！`,
-                '确定删除',
-                '取消',
-                true
-            ).then(confirmed => {
-                if (confirmed) {
-                    const nodeId = this.currentPage.local_id;
-                    // 1. 查找所有指向该节点的页面，清理其 options
-                    // 可通过遍历 graphData.edges 找到所有 source 为 nodeId 的边，但这里简化：直接后端处理
-                    // 或者前端遍历所有节点，但需要获取所有页面的 options
-                    // 推荐在后端删除页面时自动清理引用（在 delete_page 接口中处理）
-                    
-                    // 2. 调用后端删除页面（后端应清理引用）
-                    StoryAPI.deletePage(this.currentPage.id)
-                        .then(() => {
-                            // 3. 从渲染器中删除节点
-                            JsPlumbRenderer.deleteNode(nodeId);
-                            // 4. 保存图数据（移除相关 edges）
-                            this.saveGraphData();
-                            this.currentPage = null;
-                            this.refreshGraph();
-                            this.showToast('✅ 页面已删除', 'success');
-                        })
-                        .catch(err => {
-                            console.error('删除失败:', err);
-                            this.showToast('❌ ' + err.message, 'error');
-                        });
-                }
+            const opt = this.currentPage.options[idx];
+            const sourcePage = this.currentPage.page_id;
+            const targetPage = opt.jump_local_id;
+            StoryAPI.removeOption(this.storyId, {
+                source_page: sourcePage,
+                target_page: targetPage
+            })
+            .then(() => {
+                this.currentPage.options.splice(idx, 1);
+                this.refreshGraph();
+                this.showToast('✅ 分支已删除', 'success');
+            })
+            .catch(err => {
+                console.error('删除分支失败:', err);
+                this.showToast('❌ 删除分支失败', 'error');
             });
         },
 
@@ -275,6 +271,57 @@ const app = createApp({
             const graphData = JsPlumbRenderer.getGraphData();
             StoryAPI.saveGraph(this.storyId, graphData)
                 .catch(err => console.error('保存图数据失败:', err));
+        },
+
+        // ============================================================
+        // 连线锚点编辑
+        // ============================================================
+        saveEdge() {
+            if (!this.edgeOptionId) {
+                this.showToast('⚠️ 该连线尚未保存到数据库，请刷新后再试', 'warning');
+                return;
+            }
+            StoryAPI.updateOption(this.edgeOptionId, {
+                source_anchor: this.edgeSourceAnchor,
+                target_anchor: this.edgeTargetAnchor,
+                option_text: this.edgeLabel
+            })
+            .then(() => {
+                this.showToast('✅ 连线设置已保存', 'success');
+                this.currentEdge = null;
+                this.refreshGraph();
+            })
+            .catch(err => {
+                console.error('保存连线失败:', err);
+                this.showToast('❌ 保存连线失败', 'error');
+            });
+        },
+
+        deleteEdge() {
+            if (!this.edgeOptionId) return;
+            this.showConfirm(
+                '确认删除',
+                '确定要删除此连线吗？',
+                '删除',
+                '取消',
+                true
+            ).then(confirmed => {
+                if (confirmed) {
+                    StoryAPI.removeOption(this.storyId, {
+                        source_page: this.currentEdge.source,
+                        target_page: this.currentEdge.target
+                    })
+                    .then(() => {
+                        this.showToast('✅ 连线已删除', 'success');
+                        this.currentEdge = null;
+                        this.refreshGraph();
+                    })
+                    .catch(err => {
+                        console.error('删除连线失败:', err);
+                        this.showToast('❌ 删除连线失败', 'error');
+                    });
+                }
+            });
         },
 
         // ============================================================
@@ -336,7 +383,7 @@ const app = createApp({
             this.showToast('🔄 正在刷新...', 'warning', 1000);
             this.refreshGraph();
             if (this.currentPage) {
-                this.loadPage(this.currentPage.local_id);
+                this.loadPage(this.currentPage.page_id);
             }
             setTimeout(() => {
                 this.showToast('✅ 刷新完成', 'success', 1500);
@@ -449,58 +496,7 @@ const app = createApp({
                 }
             };
             reader.readAsText(file);
-        },
-
-        saveEdge() {
-            if (!this.edgeOptionId) return;
-            StoryAPI.updateOption(this.edgeOptionId, {
-                source_anchor: this.edgeSourceAnchor,
-                target_anchor: this.edgeTargetAnchor,
-                option_text: this.edgeLabel
-            })
-            .then(() => {
-                this.showToast('✅ 连线设置已保存', 'success');
-                this.currentEdge = null;
-                this.refreshGraph();  // 刷新图以更新锚点
-            })
-            .catch(err => {
-                console.error('保存连线失败:', err);
-                this.showToast('❌ 保存连线失败', 'error');
-            });
-        },
-
-        deleteEdge() {
-            if (!this.edgeOptionId) return;
-            this.showConfirm(
-                '确认删除',
-                '确定要删除此连线吗？',
-                '删除',
-                '取消',
-                true
-            ).then(confirmed => {
-                if (confirmed) {
-                    // 需要知道 source 和 target 来调用 removeOption（或使用 option_id）
-                    // 我们可以新增一个基于 option_id 的删除接口
-                    // 或者通过 source/target 删除
-                    // 这里我们使用 source/target
-                    StoryAPI.removeOption(this.storyId, {
-                        source_page: this.currentEdge.source,
-                        target_page: this.currentEdge.target
-                    })
-                    .then(() => {
-                        this.showToast('✅ 连线已删除', 'success');
-                        this.currentEdge = null;
-                        this.refreshGraph();
-                    })
-                    .catch(err => {
-                        console.error('删除连线失败:', err);
-                        this.showToast('❌ 删除连线失败', 'error');
-                    });
-                }
-            });
-        },
-
-
+        }
     },
 
     mounted() {
@@ -508,66 +504,54 @@ const app = createApp({
         JsPlumbRenderer.init('chart-container', {
             onNodeClick: (nodeId) => {
                 this.loadPage(nodeId);
-                JsPlumbRenderer.highlightNode(nodeId);  // 高亮当前选中的节点
+                JsPlumbRenderer.highlightNode(nodeId);
+                // 点击节点时隐藏连线设置
+                this.currentEdge = null;
+                this.edgeOptionId = null;
             },
             onEdgeClick: (edgeData) => {
+                // 如果点击的是同一条连线，则取消选中
+                if (this.currentEdge && this.currentEdge.option_id === edgeData.option_id) {
+                    this.currentEdge = null;
+                    this.edgeOptionId = null;
+                    // 可清除其他状态
+                    return;
+                }
+                // 1. 加载源页面内容（显示在右侧编辑面板）
+                this.loadPage(edgeData.source);
+                // 2. 高亮源节点（左侧思维导图）
+                JsPlumbRenderer.highlightNode(edgeData.source);
+                // 3. 设置连线数据（用于下方连线设置区）
                 this.currentEdge = edgeData;
                 this.edgeOptionId = edgeData.option_id;
                 this.edgeSourceAnchor = edgeData.sourceAnchor;
                 this.edgeTargetAnchor = edgeData.targetAnchor;
                 this.edgeLabel = edgeData.label;
                 this.edgeConnection = edgeData.connection;
+                console.log('连线点击数据:', edgeData);
             },
             onNodeMove: (nodeId, x, y) => {
-                // 节点移动时自动保存图数据（防抖）
                 if (this._saveGraphTimer) clearTimeout(this._saveGraphTimer);
                 this._saveGraphTimer = setTimeout(() => {
                     this.saveGraphData();
                 }, 500);
             },
-            onOptionChange: (sourceLocalId, targetLocalId, action, label) => {
-                // 1. 获取源页面的当前 options
-                StoryAPI.getPage(this.storyId, sourceLocalId)
-                    .then(data => {
-                        const options = data.options || [];
-                        if (action === 'add') {
-                            // 检查是否已存在相同跳转，避免重复
-                            if (!options.find(opt => opt.jump_local_id === targetLocalId)) {
-                                options.push({ text: label || '新连线', jump_local_id: targetLocalId });
-                            }
-                        } else if (action === 'remove') {
-                            const idx = options.findIndex(opt => opt.jump_local_id === targetLocalId);
-                            if (idx !== -1) options.splice(idx, 1);
-                        }
-                        // 2. 更新源页面的 options
-                        return StoryAPI.updatePage(data.id, { options: options });
-                    })
-                    .then(() => {
-                        // 3. 保存图数据（包含 edges）
-                        this.saveGraphData();
-                        // 4. 如果当前页面是源页面，更新本地 currentPage.options
-                        if (this.currentPage && this.currentPage.local_id === sourceLocalId) {
-                            // 重新加载当前页面以刷新右侧面板
-                            this.loadPage(sourceLocalId);
-                        }
-                        // 5. 刷新图（可选，但会触发重绘）
-                        // this.refreshGraph(); // 如果不想全量刷新，可只更新本地数据
-                    })
-                    .catch(err => {
-                        console.error('更新选项失败:', err);
-                        console.error('sourceLocalId:', sourceLocalId, 'targetLocalId:', targetLocalId);
-                        this.showToast('同步连线数据失败: ' + err.message, 'error');
-                    });
+            // 简化 onOptionChange：仅刷新图数据，因为增删操作已在独立方法中完成
+            onOptionChange: (sourcePageId, targetPageId, action, label) => {
+                // 直接刷新图数据，无需重复调用 API
+                this.refreshGraph();
+                // 如果当前页面是源页面，重新加载以更新分支列表
+                if (this.currentPage && this.currentPage.page_id === sourcePageId) {
+                    this.loadPage(sourcePageId);
+                }
             },
-            onLabelChange: (sourceLocalId, targetLocalId, newLabel) => {
-                this.saveGraphData();
+            onLabelChange: (sourcePageId, targetPageId, newLabel) => {
+                // this.saveGraphData();
             }
         });
 
-        // 加载图数据
         this.refreshGraph();
 
-        // 事件绑定
         document.addEventListener('mousemove', this.onDrag);
         document.addEventListener('mouseup', this.stopDrag);
         document.addEventListener('mouseleave', this.stopDrag);
@@ -589,7 +573,6 @@ const app = createApp({
         JsPlumbRenderer.destroy && JsPlumbRenderer.destroy();
     },
 
-    // 引用外部模板
     template: '#creator-template'
 });
 

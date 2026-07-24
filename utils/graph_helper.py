@@ -1,13 +1,7 @@
 import json
 from models import Story, StoryPage, StoryPageOption
 
-
 def build_graph_data(story_id, mode='published'):
-    """
-    构建图数据（节点 + 边）
-    - mode='published'：使用正式版 content
-    - mode='draft'：使用草稿版 draft_content（若存在）
-    """
     story = Story.query.get(story_id)
     if not story:
         return {"nodes": [], "edges": []}
@@ -26,11 +20,12 @@ def build_graph_data(story_id, mode='published'):
             "has_draft": page.has_draft
         })
 
+    # 从 story_page_options 表获取所有边
     options = StoryPageOption.query.filter_by(story_id=story_id).all()
     edges = []
     for opt in options:
         edges.append({
-            "option_id": opt.option_id,  # ✅ 新增
+            "option_id": opt.option_id,           # 关键：必须包含
             "source": opt.source_page,
             "target": opt.target_page,
             "label": opt.option_text,

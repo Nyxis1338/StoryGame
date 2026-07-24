@@ -35,45 +35,8 @@ def get_page_or_404(global_id, check_story_id=None):
     return page
 
 
-def validate_jump_targets(story_id, options):
-    """校验选项中的 jump_local_id 是否真实存在（迁移后不再使用）"""
-    # 保留以防旧代码调用
-    if not options:
-        return options
-    valid_ids = {p.page_id for p in StoryPage.query.filter_by(story_id=story_id).all()}
-    for opt in options:
-        target = opt.get('jump_local_id')
-        if target is not None and target not in valid_ids:
-            abort(400, description=f"无效跳转目标: {target}")
-    return options
-
-
-def check_self_loop(page_local_id, options):
-    """阻止页面跳转到自己（防止死循环）"""
-    for opt in options:
-        if opt.get('jump_local_id') == page_local_id:
-            abort(400, description="禁止页面跳转至自身")
-
-
-def parse_options(options_str):
-    """将 options JSON 字符串解析为 Python 列表（迁移后保留兼容）"""
-    if not options_str:
-        return []
-    try:
-        return json.loads(options_str) if isinstance(options_str, str) else options_str
-    except (json.JSONDecodeError, TypeError):
-        return []
-
-
-def stringify_options(options_list):
-    """将 Python 列表转为 JSON 字符串（迁移后保留兼容）"""
-    if not options_list:
-        return '[]'
-    return json.dumps(options_list, ensure_ascii=False)
-
-
 # ============================================================
-# 认证相关 API（不变）
+# 认证相关 API
 # ============================================================
 
 @api_bp.route('/auth/login', methods=['POST'])
@@ -118,7 +81,7 @@ def change_password():
 
 
 # ============================================================
-# 故事管理 API（部分修改，去除 edges 相关）
+# 故事管理 API
 # ============================================================
 
 @api_bp.route('/stories')
@@ -238,7 +201,6 @@ def restore_story(story_id):
 def publish_story(story_id):
     story = get_story_or_404(story_id)
     pages = StoryPage.query.filter_by(story_id=story_id).all()
-    # 校验：必须有起始页（page_id=1）
     if not any(p.page_id == 1 for p in pages):
         abort(400, description="缺少起始页（ID=1），无法发布")
     for page in pages:
@@ -253,7 +215,7 @@ def publish_story(story_id):
 
 
 # ============================================================
-# 页面管理 API（迁移后新接口）
+# 页面管理 API
 # ============================================================
 
 @api_bp.route('/page/<int:story_id>/<int:page_id>')
@@ -263,23 +225,21 @@ def get_page(story_id, page_id):
     if not page:
         abort(404, description="该页面不存在")
 
-    # 获取该页面的所有选项（从 story_page_options）
     options = StoryPageOption.query.filter_by(story_id=story_id, source_page=page_id).all()
-    options_list = [{'text': opt.option_text, 'jump_local_id': opt.target_page} for opt in options]
+    options_list = [{'text': opt.option_text, 'jump_local_id': opt.target_page,'option_id': opt.option_id } for opt in options]
 
     is_creator = request.args.get('mode') == 'edit'
     content = page.draft_content if (is_creator and page.draft_content is not None) else page.content
 
     return jsonify({
         'id': page.global_id,
-        'local_id': page.page_id,
+        'page_id': page.page_id,
         'page_type': page.page_type,
         'content': content,
         'options': options_list,
         'is_true_ending': (page.page_type == 'true_ending'),
         'has_draft': page.has_draft,
         'published_content': page.content,
-        'published_options': []  # 不再需要
     })
 
 
@@ -295,11 +255,28 @@ def update_page(global_id):
     if 'page_type' in data:
         page.page_type = data['page_type']
 
+    # 更新选项文本（传入的 options 包含 option_id 和 text）
+    if 'options' in data:
+        for opt_data in data['options']:
+            option_id = opt_data.get('option_id')
+            if option_id:
+                # 确保该选项属于当前故事
+                opt = StoryPageOption.query.filter_by(
+                    option_id=option_id,
+                    story_id=page.story_id
+                ).first()
+                if opt:
+                    opt.option_text = opt_data['text']
+                else:
+                    # 如果 option_id 不存在或不属于该故事，可忽略或报错
+                    pass
+
 
     if 'pos_x' in data:
         page.pos_x = data['pos_x']
     if 'pos_y' in data:
         page.pos_y = data['pos_y']
+
 
     story = Story.query.get(page.story_id)
     story.update_time = datetime.now(timezone.utc)
@@ -312,7 +289,6 @@ def create_page(story_id):
     get_story_or_404(story_id)
     data = request.json
     new_page_id = data.get('page_id')
-
     if not new_page_id:
         abort(400, description="缺少 page_id")
 
@@ -386,24 +362,28 @@ def save_graph(story_id):
     edges = data.get('edges', [])
     # 删除该故事所有现有边
     StoryPageOption.query.filter_by(story_id=story_id).delete()
-    for edge in edges:
-        opt = StoryPageOption(
-            story_id=story_id,
-            source_page=edge['source'],
-            target_page=edge['target'],
-            option_text=edge.get('label', ''),
-            source_anchor=edge.get('sourceAnchor', 'right'),
-            target_anchor=edge.get('targetAnchor', 'left')
-        )
-        db.session.add(opt)
 
-    story.update_time = datetime.now(timezone.utc)
-    db.session.commit()
-    return jsonify({'status': 'success'})
+    try:
+        for edge in edges:
+            opt = StoryPageOption(
+                story_id=story_id,
+                source_page=edge['source'],
+                target_page=edge['target'],
+                option_text=edge.get('label', ''),
+                source_anchor=edge.get('sourceAnchor', 'right'),
+                target_anchor=edge.get('targetAnchor', 'left')
+            )
+            db.session.add(opt)
+        story.update_time = datetime.now(timezone.utc)
+        db.session.commit()
+        return jsonify({'status': 'success'})
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': f'保存图数据失败: {str(e)}'}), 400
 
 
 # ============================================================
-# 分支选项管理（独立 API）
+# 分支选项管理 API
 # ============================================================
 
 @api_bp.route('/story/<int:story_id>/option', methods=['POST'])
@@ -411,19 +391,24 @@ def add_option(story_id):
     if not session.get('authenticated'):
         return jsonify({'error': '未登录'}), 401
     data = request.json
-    opt = StoryPageOption(
-        story_id=story_id,
-        source_page=data['source_page'],
-        target_page=data['target_page'],
-        option_text=data['option_text'],
-        source_anchor=data.get('source_anchor', 'right'),
-        target_anchor=data.get('target_anchor', 'left')
-    )
-    db.session.add(opt)
-    story = Story.query.get(story_id)
-    story.update_time = datetime.now(timezone.utc)
-    db.session.commit()
-    return jsonify({'option_id': opt.option_id})
+    try:
+        opt = StoryPageOption(
+            story_id=story_id,
+            source_page=data['source_page'],
+            target_page=data['target_page'],
+            option_text=data['option_text'],
+            source_anchor=data.get('source_anchor', 'right'),
+            target_anchor=data.get('target_anchor', 'left')
+        )
+        db.session.add(opt)
+        story = Story.query.get(story_id)
+        story.update_time = datetime.now(timezone.utc)
+        db.session.commit()
+        return jsonify({'option_id': opt.option_id})
+    except Exception as e:
+        db.session.rollback()
+        print("❌ add_option 错误:", e)  # 确保终端打印错误
+        return jsonify({'error': str(e)}), 500
 
 
 @api_bp.route('/story/<int:story_id>/option', methods=['DELETE'])
@@ -447,6 +432,31 @@ def remove_option(story_id):
     story.update_time = datetime.now(timezone.utc)
     db.session.commit()
     return jsonify({'status': 'deleted'})
+
+
+# ============================================================
+# 连线锚点更新 API
+# ============================================================
+
+@api_bp.route('/option/<int:option_id>', methods=['PUT'])
+def update_option(option_id):
+
+
+    """更新连线的锚点或标签"""
+    if not session.get('authenticated'):
+        return jsonify({'error': '未登录'}), 401
+    opt = StoryPageOption.query.get_or_404(option_id)
+    data = request.json
+    print("收到 option_id:", option_id)
+    print("请求数据:", data)
+    if 'source_anchor' in data:
+        opt.source_anchor = data['source_anchor']
+    if 'target_anchor' in data:
+        opt.target_anchor = data['target_anchor']
+    if 'option_text' in data:
+        opt.option_text = data['option_text']
+    db.session.commit()
+    return jsonify({'status': 'success'})
 
 
 # ============================================================
@@ -479,7 +489,7 @@ def permanent_delete_story(story_id):
 
 
 # ============================================================
-# 数据导入/导出
+# 数据导入/导出 API
 # ============================================================
 
 @api_bp.route('/backup/export', methods=['GET'])
@@ -588,23 +598,3 @@ def import_data():
     except Exception as e:
         db.session.rollback()
         return jsonify({'error': f'导入失败: {str(e)}'}), 500
-
-
-# ============================================================
-# 锚点 连线
-# ============================================================
-@api_bp.route('/option/<int:option_id>', methods=['PUT'])
-def update_option(option_id):
-    """更新连线的锚点或标签"""
-    if not session.get('authenticated'):
-        return jsonify({'error': '未登录'}), 401
-    opt = StoryPageOption.query.get_or_404(option_id)
-    data = request.json
-    if 'source_anchor' in data:
-        opt.source_anchor = data['source_anchor']
-    if 'target_anchor' in data:
-        opt.target_anchor = data['target_anchor']
-    if 'option_text' in data:
-        opt.option_text = data['option_text']
-    db.session.commit()
-    return jsonify({'status': 'success'})

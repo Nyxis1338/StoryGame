@@ -1,9 +1,7 @@
 /* ==========================================
-   读者端 - 沉浸式阅读 (reader.css)
-   适用于 index.html 和 reader.html
+   读者端 - 沉浸式阅读 (精简版)
    ========================================== */
 
-/* ---------- 全局 ---------- */
 .reader-body {
     background-color: #e8e0d5;
     font-family: 'Georgia', 'Times New Roman', 'Songti SC', serif;
@@ -15,7 +13,6 @@
     padding: 30px 15px;
 }
 
-/* ---------- 故事列表页 ---------- */
 .reader-container {
     max-width: 720px;
     width: 100%;
@@ -60,7 +57,7 @@
 }
 .reader-search-box input:focus {
     border-color: #b8a99a;
-    box-shadow: 0 0 0 3px rgba(184, 169, 154, 0.2);
+    box-shadow: 0 0 0 3px rgba(184,169,154,0.2);
 }
 .reader-search-box button {
     padding: 10px 24px;
@@ -76,14 +73,11 @@
     background: #6a5a4a;
 }
 
-/* ---------- 故事卡片 ---------- */
-
 .reader-story-item {
     background: #fffdf7;
     padding: 18px 22px;
     border-radius: 8px;
     margin-bottom: 15px;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.06);
     border-left: 4px solid #dcd0c0;
     transition: all 0.25s;
 }
@@ -91,16 +85,12 @@
     border-left-color: #8a7a6a;
     transform: translateX(4px);
 }
-.reader-story-item h3 {
-    margin: 0 0 6px;
-}
+.reader-story-item h3 { margin: 0 0 6px; }
 .reader-story-item h3 a {
     color: #2c2c2c;
     text-decoration: none;
 }
-.reader-story-item h3 a:hover {
-    color: #6a5a4a;
-}
+.reader-story-item h3 a:hover { color: #6a5a4a; }
 .reader-story-item p {
     margin: 4px 0;
     color: #5a4a3a;
@@ -111,7 +101,6 @@
     color: #a09080;
 }
 
-/* ---------- 阅读页 ---------- */
 .reader-content {
     font-size: 1.15rem;
     line-height: 2;
@@ -132,7 +121,6 @@
     margin: 0.8em 0;
 }
 
-/* ---------- 读者选项 ---------- */
 .reader-options {
     margin-top: 2.5rem;
     display: flex;
@@ -158,8 +146,9 @@
     background: #b8a99a;
     color: #fff;
     transform: translateX(8px);
-    box-shadow: 4px 4px 0 rgba(0, 0, 0, 0.1);
+    box-shadow: 4px 4px 0 rgba(0,0,0,0.1);
 }
+
 .reader-back-btn {
     margin-top: 30px;
     background: transparent !important;
@@ -169,14 +158,13 @@
     border-bottom: 2px dotted #b8a99a !important;
     border-radius: 0 !important;
     padding: 5px 0 !important;
-    display: inline-block !important;
-    width: auto !important;
+    cursor: pointer;
 }
 .reader-back-btn:hover {
     transform: translateX(-4px) !important;
     color: #5a4a3a !important;
-    border-bottom-color: #5a4a3a !important;
 }
+
 .reader-ending {
     text-align: center;
     font-size: 1.5rem;
@@ -186,10 +174,9 @@
     margin-top: 30px;
 }
 
-/* ---------- 加载/空状态 ---------- */
-.reader-loading, .reader-no-more {
+.reader-loading,
+.reader-no-more {
     text-align: center;
     padding: 20px;
     color: #a09080;
 }
-
