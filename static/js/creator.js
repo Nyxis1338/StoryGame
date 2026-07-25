@@ -45,6 +45,8 @@ const app = createApp({
             edgeLabel: '',
             edgeOptionId: null,
             edgeConnection: null,
+
+            graphData: { nodes: [], edges: [] },   // 新增
         };
     },
 
@@ -148,7 +150,8 @@ const app = createApp({
                     StoryAPI.deletePage(this.currentPage.id)
                         .then(() => {
                             JsPlumbRenderer.deleteNode(nodeId);
-                            this.saveGraphData();
+                            // this.saveGraphData();   // ❌ 删除这行
+                            this.refreshGraph();       // ✅ 改为仅刷新
                             this.currentPage = null;
                             this.refreshGraph();
                             this.showToast('✅ 页面已删除', 'success');
@@ -258,13 +261,11 @@ const app = createApp({
                     if (!data) data = { nodes: [], edges: [] };
                     if (!data.nodes) data.nodes = [];
                     if (!data.edges) data.edges = [];
-                    this.graphData = data;
+                    this.graphData = data;   // 保存供后续使用
                     JsPlumbRenderer.renderGraph(data.nodes, data.edges);
                     this.fetchStoryStatus();
                 })
-                .catch(err => {
-                    console.error('加载图数据失败:', err);
-                });
+                .catch(err => console.error('加载图数据失败:', err));
         },
 
         saveGraphData() {
@@ -533,10 +534,13 @@ const app = createApp({
                 console.log('连线点击数据:', edgeData);
             },
             onNodeMove: (nodeId, x, y) => {
-                if (this._saveGraphTimer) clearTimeout(this._saveGraphTimer);
-                this._saveGraphTimer = setTimeout(() => {
-                    this.saveGraphData();
-                }, 500);
+                // 从缓存图数据中查找该节点的 global_id
+                const node = this.graphData.nodes.find(n => n.id === nodeId);
+                if (node && node.global_id) {
+                    StoryAPI.updatePage(node.global_id, { pos_x: x, pos_y: y })
+                        .catch(err => console.error('更新节点坐标失败:', err));
+                }
+                // 不再调用 this.saveGraphData()
             },
             // 简化 onOptionChange：仅刷新图数据，因为增删操作已在独立方法中完成
             onOptionChange: (sourcePageId, targetPageId, action, label) => {

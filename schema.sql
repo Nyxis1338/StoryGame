@@ -406,7 +406,7 @@ INSERT INTO "story_page_options" ("option_id", "story_id", "source_page", "targe
 	(244, 2, 1, 3, '立刻单独询问值班保安', 'right', 'left'),
 	(245, 2, 2, 4, '传唤油画修复师对峙小刀线索', 'right', 'left'),
 	(246, 2, 2, 5, '搜查富商随身背包', 'right', 'left'),
-	(247, 2, 3, 2, '返回展厅重新勘察痕迹', 'right', 'left'),
+	(226, 2, 3, 2, '返回展厅重新勘察痕迹', 'right', 'left'),
 	(248, 2, 3, 6, '直接审问修复师', 'right', 'left'),
 	(249, 2, 4, 5, '相信修复师说辞，转而去盘问富商', 'right', 'left'),
 	(250, 2, 4, 7, '申请搜查修复师工作室', 'right', 'left'),

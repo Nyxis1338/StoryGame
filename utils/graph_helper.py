@@ -12,6 +12,7 @@ def build_graph_data(story_id, mode='published'):
         content = page.content if mode == 'published' else (page.draft_content or page.content)
         nodes.append({
             "id": page.page_id,
+            "global_id": page.global_id,      # 新增，用于后续更新坐标
             "label": f"第{page.page_id}页",
             "pos_x": page.pos_x or 50,
             "pos_y": page.pos_y or 50,
