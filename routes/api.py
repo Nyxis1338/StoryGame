@@ -271,7 +271,10 @@ def update_page(global_id):
                     story_id=page.story_id
                 ).first()
                 if opt:
-                    opt.option_text = opt_data['text']
+                    if 'text' in opt_data:
+                        opt.option_text = opt_data['text']
+                    if 'target_page' in opt_data:
+                        opt.target_page = opt_data['target_page']   # 新增
                 else:
                     # 如果 option_id 不存在或不属于该故事，可忽略或报错
                     pass

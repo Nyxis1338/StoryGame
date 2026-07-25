@@ -88,6 +88,10 @@ var JsPlumbRenderer = (function() {
             var y = node.pos_y || (100 + Math.random() * 200);
             el.style.left = x + 'px';
             el.style.top = y + 'px';
+
+            // ✅ 添加悬浮预览：显示内容摘要（node.value 已包含前30字符）
+            el.title = node.value || node.label || ('第' + id + '页');  
+
             container.appendChild(el);
             nodeMap[id] = el;
 
@@ -243,17 +247,21 @@ var JsPlumbRenderer = (function() {
 
         var existingConn = findConnectionBetweenEndpoints(sourceEp, targetEp);
         if (existingConn) {
-            if (confirm('该连接已存在，是否删除？')) {
-                instance.deleteConnection(existingConn);
-                if (onOptionChangeCallback) {
-                    onOptionChangeCallback(
-                        parseInt(sourceNodeId),
-                        parseInt(targetNodeId),
-                        'remove',
-                        null
-                    );
-                }
-            }
+            // 已有连线，不操作，直接清除选中状态
+            sourceEp.removeClass('selected');
+            selectedEndpoint = null;
+            return;
+            // if (confirm('该连接已存在，是否删除？')) {
+            //     instance.deleteConnection(existingConn);
+            //     if (onOptionChangeCallback) {
+            //         onOptionChangeCallback(
+            //             parseInt(sourceNodeId),
+            //             parseInt(targetNodeId),
+            //             'remove',
+            //             null
+            //         );
+            //     }
+            // }
         } else {
             var color = getRandomColor();
             var conn = instance.connect({
@@ -281,15 +289,18 @@ var JsPlumbRenderer = (function() {
 
     // 查找两个端点之间的连接
     function findConnectionBetweenEndpoints(ep1, ep2) {
-        var uuid1 = ep1.getUuid();
-        var uuid2 = ep2.getUuid();
+        // 获取两个端点所在的节点 ID
+        var sourceNodeId = parseInt(ep1.elementId.replace('node-', ''));
+        var targetNodeId = parseInt(ep2.elementId.replace('node-', ''));
         var connections = instance.getConnections();
         for (var i = 0; i < connections.length; i++) {
             var conn = connections[i];
-            var epA = conn.endpoints[0];
-            var epB = conn.endpoints[1];
-            if ((epA.getUuid() === uuid1 && epB.getUuid() === uuid2) ||
-                (epA.getUuid() === uuid2 && epB.getUuid() === uuid1)) {
+            var connSourceId = parseInt(conn.sourceId.replace('node-', ''));
+            var connTargetId = parseInt(conn.targetId.replace('node-', ''));
+            
+            // 检查是否连接了相同的两个节点（无视方向）
+            if ((connSourceId === sourceNodeId && connTargetId === targetNodeId) ||
+                (connSourceId === targetNodeId && connTargetId === sourceNodeId)) {
                 return conn;
             }
         }
@@ -354,6 +365,10 @@ var JsPlumbRenderer = (function() {
         var y = nodeData.pos_y || (100 + Math.random() * 200);
         el.style.left = x + 'px';
         el.style.top = y + 'px';
+
+        // ✅ 添加悬浮预览
+        el.title = nodeData.value || nodeData.label || ('第' + id + '页');
+        
         container.appendChild(el);
         nodeMap[id] = el;
 

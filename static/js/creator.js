@@ -81,13 +81,22 @@ const app = createApp({
         },
 
         savePage() {
+            // 检查所有选项的目标页是否存在
+            const nodeIds = this.graphData.nodes.map(n => n.id);
+            for (let opt of (this.currentPage.options || [])) {
+                if (!nodeIds.includes(opt.jump_local_id)) {
+                    this.showToast(`⚠️ 目标页 ${opt.jump_local_id} 不存在，请先创建该页面`, 'warning');
+                    return;
+                }
+            }
             if (!this.currentPage) return;
             this.saving = true;
 
-            // 构建选项数据（包含 option_id 和 text）
+            // 构建选项数据（包含 option_id 和 text 以及跳转页id）
             const optionsData = (this.currentPage.options || []).map(opt => ({
                 option_id: opt.option_id,
-                text: opt.text
+                text: opt.text,
+                target_page: opt.jump_local_id   // 跳转目标页 ID
             }));
 
             StoryAPI.updatePage(this.currentPage.id, {
@@ -542,18 +551,31 @@ const app = createApp({
                 }
                 // 不再调用 this.saveGraphData()
             },
-            // 简化 onOptionChange：仅刷新图数据，因为增删操作已在独立方法中完成
+            // 
             onOptionChange: (sourcePageId, targetPageId, action, label) => {
-                // 直接刷新图数据，无需重复调用 API
-                this.refreshGraph();
-                // 如果当前页面是源页面，重新加载以更新分支列表
-                if (this.currentPage && this.currentPage.page_id === sourcePageId) {
-                    this.loadPage(sourcePageId);
+                if (action === 'add') {
+                    StoryAPI.addOption(this.storyId, {
+                        source_page: sourcePageId,
+                        target_page: targetPageId,
+                        option_text: label || '新连线',
+                        source_anchor: 'right',
+                        target_anchor: 'left'
+                    })
+                    .then(() => {
+                        this.refreshGraph();
+                        if (this.currentPage && this.currentPage.page_id === sourcePageId) {
+                            this.loadPage(sourcePageId);
+                        }
+                        this.showToast('✅ 分支添加成功', 'success');
+                    })
+                    .catch(err => {
+                        console.error('添加分支失败:', err);
+                        this.showToast('❌ 添加分支失败: ' + err.message, 'error');
+                        this.refreshGraph(); // 回滚视图
+                    });
                 }
+                // 注意：不再处理 'remove'，删除由右侧面板的 removeOption 处理
             },
-            onLabelChange: (sourcePageId, targetPageId, newLabel) => {
-                // this.saveGraphData();
-            }
         });
 
         this.refreshGraph();
