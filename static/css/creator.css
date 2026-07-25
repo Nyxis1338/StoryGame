@@ -702,3 +702,30 @@ body.creator-body {
     border-color: #1a73e8;
     box-shadow: 0 0 0 3px rgba(26, 115, 232, 0.1);
 }
+
+/* ===== 回收站按钮 ===== */
+.btn-restore {
+    padding: 6px 16px;
+    background: #28a745;
+    color: white;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 14px;
+}
+.btn-restore:hover {
+    background: #218838;
+}
+
+.btn-permanent-delete {
+    padding: 6px 16px;
+    background: #ea4335;
+    color: white;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 14px;
+}
+.btn-permanent-delete:hover {
+    background: #c62828;
+}
