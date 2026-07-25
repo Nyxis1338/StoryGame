@@ -107,19 +107,21 @@ if __name__ == '__main__':
     with app.app_context():
         db.create_all()
 
-    print("\n" + "=" * 60)
-    print("  📚 故事创作与阅读平台")
-    print("=" * 60)
-    print(f"  🗄️  数据库路径: {DB_PATH}")
-    print(f"  ✅ 数据库状态: {'已存在' if os.path.exists(DB_PATH) else '新建'}")
-    print("=" * 60)
-    print("  🌐 访问地址:")
-    print(f"     📖 读者首页:  http://127.0.0.1:5000/")
-    print(f"     ✍️ 创作者工作台: http://127.0.0.1:5000/creator")
-    print(f"     🔐 登录页面:  http://127.0.0.1:5000/login")
-    print(f"     🧪 分栏测试:  http://127.0.0.1:5000/creator_test")
-    print("=" * 60)
-    print("  💡 按 Ctrl+C 停止服务")
-    print("=" * 60 + "\n")
+    # 只在主进程中打印启动信息（避免 reloader 进程重复打印）
+    import os
+    if os.environ.get('WERKZEUG_RUN_MAIN') != 'true':
+        print("\n" + "=" * 60)
+        print("  📚 故事创作与阅读平台")
+        print("=" * 60)
+        print(f"  🗄️  数据库路径: {DB_PATH}")
+        print(f"  ✅ 数据库状态: {'已存在' if os.path.exists(DB_PATH) else '新建'}")
+        print("=" * 60)
+        print("  🌐 访问地址:")
+        print(f"     📖 读者首页:  http://127.0.0.1:5000/")
+        print(f"     ✍️ 创作者工作台: http://127.0.0.1:5000/creator")
+        print(f"     🔐 登录页面:  http://127.0.0.1:5000/login")
+        print("=" * 60)
+        print("  💡 按 Ctrl+C 停止服务")
+        print("=" * 60 + "\n")
 
     app.run(debug=True, host='127.0.0.1', port=5000)

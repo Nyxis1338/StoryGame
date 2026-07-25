@@ -683,3 +683,22 @@ body.creator-body {
         transform: translateX(-50%) translateY(0);
     }
 }
+
+/* ==========================================
+   全局表单控件（用于模态框等）
+   ========================================== */
+
+.form-control {
+    width: 100%;
+    padding: 10px 14px;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    font-size: 15px;
+    outline: none;
+    box-sizing: border-box;
+    font-family: inherit;
+}
+.form-control:focus {
+    border-color: #1a73e8;
+    box-shadow: 0 0 0 3px rgba(26, 115, 232, 0.1);
+}
