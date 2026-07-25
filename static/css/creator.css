@@ -547,6 +547,8 @@ body.creator-body {
 .jtk-connector { z-index: 2; }
 .jtk-endpoint { z-index: 3; }
 .jsplumb-label {
+    z-index: 1000;
+    position: relative;
     background: rgba(255,255,255,0.9);
     padding: 2px 8px;
     border-radius: 4px;
@@ -556,6 +558,7 @@ body.creator-body {
     font-weight: bold;
     white-space: nowrap;
     cursor: pointer;
+    pointer-events: none;
 }
 .jtk-endpoint.selected circle {
     fill: #ff6b6b !important;
@@ -729,3 +732,4 @@ body.creator-body {
 .btn-permanent-delete:hover {
     background: #c62828;
 }
+

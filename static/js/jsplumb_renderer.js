@@ -30,9 +30,18 @@ var JsPlumbRenderer = (function() {
             EndpointStyle: { fill: '#fff', stroke: '#5470c6', strokeWidth: 2 },
             EndpointHoverStyle: { fill: '#1a73e8', stroke: '#1a73e8' },
             ConnectionOverlays: [
-                ['Label', { label: '', cssClass: 'jsplumb-label', location: 0.5, id: 'label' }]
+                ['Label', { label: '', cssClass: 'jsplumb-label', location: 0.5, id: 'label' }],
+                ["Arrow", {
+                    location: 1,      // 1 表示箭头位于连线的终点[reference:3]
+                    width: 10,        // 箭头宽度
+                    length: 10,       // 箭头长度
+                    id: "arrow",      // 可选，方便后续操作
+                    // direction: 1   // 1 为默认值，表示指向目标节点[reference:4][reference:5]
+                    }
+                ],
             ],
             // connectionsDetachable: false // 可根据需要启用
+
         });
 
         onNodeMoveCallback = callbacks.onNodeMove || null;
