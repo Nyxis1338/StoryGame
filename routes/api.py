@@ -2,6 +2,7 @@
 # 导入依赖
 # ============================================================
 
+import random
 from flask import Blueprint, request, jsonify, abort, session
 from models import db, Story, StoryPage, AdminConfig, StoryPageOption
 from sqlalchemy import or_
@@ -105,7 +106,7 @@ def get_stories():
     if q:
         query = query.filter(Story.story_name.contains(q))
 
-    query = query.order_by(Story.update_time.desc())
+    query = query.order_by(Story.story_id)
     pagination = query.paginate(page=page, per_page=per_page, error_out=False)
 
     return jsonify({
@@ -231,6 +232,10 @@ def get_page(story_id, page_id):
     is_creator = request.args.get('mode') == 'edit'
     content = page.draft_content if (is_creator and page.draft_content is not None) else page.content
 
+    # 如果非创作者模式（读者端），随机打乱选项顺序
+    if not is_creator:
+        random.shuffle(options_list)
+        
     return jsonify({
         'id': page.global_id,
         'page_id': page.page_id,
@@ -440,7 +445,7 @@ def remove_option(story_id):
 
 @api_bp.route('/option/<int:option_id>', methods=['PUT'])
 def update_option(option_id):
-
+    print(f"✅ update_option 被调用，option_id={option_id}")  # 调试
 
     """更新连线的锚点或标签"""
     if not session.get('authenticated'):
@@ -448,7 +453,10 @@ def update_option(option_id):
     opt = StoryPageOption.query.get_or_404(option_id)
     data = request.json
     print("收到 option_id:", option_id)
-    print("请求数据:", data)
+    print(f"🔧 接收到数据: {data}")  # 查看完整数据
+    print(f"   source_anchor: {data.get('source_anchor')}")
+    print(f"   target_anchor: {data.get('target_anchor')}")
+    
     if 'source_anchor' in data:
         opt.source_anchor = data['source_anchor']
     if 'target_anchor' in data:

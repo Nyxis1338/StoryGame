@@ -281,20 +281,22 @@ const app = createApp({
                 this.showToast('⚠️ 该连线尚未保存到数据库，请刷新后再试', 'warning');
                 return;
             }
-            StoryAPI.updateOption(this.edgeOptionId, {
+            const data = {
                 source_anchor: this.edgeSourceAnchor,
                 target_anchor: this.edgeTargetAnchor,
-                option_text: this.edgeLabel
-            })
-            .then(() => {
-                this.showToast('✅ 连线设置已保存', 'success');
-                this.currentEdge = null;
-                this.refreshGraph();
-            })
-            .catch(err => {
-                console.error('保存连线失败:', err);
-                this.showToast('❌ 保存连线失败', 'error');
-            });
+                // option_text: this.edgeLabel  // 如果您不需要更新标签，可注释
+            };
+            console.log('📤 保存锚点数据:', data);
+            StoryAPI.updateOption(this.edgeOptionId, data)
+                .then(() => {
+                    this.showToast('✅ 连线设置已保存', 'success');
+                    this.currentEdge = null;
+                    this.refreshGraph();
+                })
+                .catch(err => {
+                    console.error('保存连线失败:', err);
+                    this.showToast('❌ 保存连线失败', 'error');
+                });
         },
 
         deleteEdge() {
