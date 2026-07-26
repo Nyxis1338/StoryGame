@@ -378,8 +378,8 @@ def save_graph(story_id):
                 source_page=edge['source'],
                 target_page=edge['target'],
                 option_text=edge.get('label', ''),
-                source_anchor=edge.get('sourceAnchor', 'right'),
-                target_anchor=edge.get('targetAnchor', 'left')
+                source_anchor=edge.get('sourceAnchor', 'bottom'),
+                target_anchor=edge.get('targetAnchor', 'top')
             )
             db.session.add(opt)
         story.update_time = datetime.now(timezone.utc)

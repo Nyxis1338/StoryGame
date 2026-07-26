@@ -561,8 +561,8 @@ const app = createApp({
                         source_page: sourcePageId,
                         target_page: targetPageId,
                         option_text: label || '新连线',
-                        source_anchor: 'right',
-                        target_anchor: 'left'
+                        source_anchor: 'bottom',
+                        target_anchor: 'top'
                     })
                     .then(() => {
                         this.refreshGraph();
