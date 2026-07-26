@@ -555,14 +555,14 @@ const app = createApp({
                 // 不再调用 this.saveGraphData()
             },
             // 
-            onOptionChange: (sourcePageId, targetPageId, action, label) => {
+            onOptionChange: (sourcePageId, targetPageId, action, label, sourceAnchor, targetAnchor) => {
                 if (action === 'add') {
                     StoryAPI.addOption(this.storyId, {
                         source_page: sourcePageId,
                         target_page: targetPageId,
                         option_text: label || '新连线',
-                        source_anchor: 'bottom',
-                        target_anchor: 'top'
+                        source_anchor: sourceAnchor ||'bottom',
+                        target_anchor: targetAnchor ||'top'
                     })
                     .then(() => {
                         this.refreshGraph();

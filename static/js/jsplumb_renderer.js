@@ -263,6 +263,11 @@ var JsPlumbRenderer = (function() {
             //     }
             // }
         } else {
+
+            // 没有连线，创建新连线
+            var sourceAnchor = sourceEp.getUuid().split('-')[2];
+            var targetAnchor = targetEp.getUuid().split('-')[2];
+
             var color = getRandomColor();
             var conn = instance.connect({
                 uuids: [sourceEp.getUuid(), targetEp.getUuid()],
@@ -277,7 +282,9 @@ var JsPlumbRenderer = (function() {
                         parseInt(sourceNodeId),
                         parseInt(targetNodeId),
                         'add',
-                        label
+                        label,
+                        sourceAnchor,   // 新增：源锚点方向
+                        targetAnchor    // 新增：目标锚点方向
                     );
                 }
             }
