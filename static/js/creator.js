@@ -47,6 +47,7 @@ const app = createApp({
             edgeConnection: null,
 
             graphData: { nodes: [], edges: [] },   // 新增
+            hasDraft: false,   // 新增
         };
     },
 
@@ -271,6 +272,8 @@ const app = createApp({
                     if (!data.nodes) data.nodes = [];
                     if (!data.edges) data.edges = [];
                     this.graphData = data;   // 保存供后续使用
+                    // 检查是否有页面存在草稿
+                    this.hasDraft = data.nodes.some(n => n.has_draft === true);
                     JsPlumbRenderer.renderGraph(data.nodes, data.edges);
                     this.fetchStoryStatus();
                 })

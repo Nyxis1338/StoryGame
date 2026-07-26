@@ -16,14 +16,19 @@
             <div style="display:flex; justify-content:space-between; align-items:center; padding:12px 24px; background:white; border-bottom:1px solid #e0e0e0; flex-shrink:0; z-index:100;">
                 <div style="display:flex; align-items:center; gap:12px;">
                     <h2 style="font-size:18px; margin:0;">📖 {{ storyName || '未命名故事' }}</h2>
-                    <span style="background:#6c757d; color:white; padding:2px 12px; border-radius:30px; font-size:12px;">{{ storyStatus }}</span>
+                    <span style="background:#6c757d; color:white; padding:2px 12px; border-radius:30px; font-size:12px;">
+                        {{ storyStatus }}
+                        <span v-if="hasDraft && storyStatus === '已发布'">（有草稿）</span>
+                    </span>
                 </div>
                 <div style="display:flex; align-items:center; gap:8px;">
                     <button @click="savePage" :disabled="saving" style="background:#1a73e8; color:white; border:none; padding:6px 16px; border-radius:8px; cursor:pointer; font-size:14px;" :style="{opacity: saving ? 0.6 : 1}">{{ saving ? '保存中...' : '💾 保存' }}</button>
                     <span v-show="saved" style="color:#34a853; font-size:13px;">✅ 已保存</span>
                     <button @click="refreshPage" style="background:#6c757d; color:white; border:none; padding:6px 14px; border-radius:8px; cursor:pointer; font-size:14px;">🔄 刷新</button>
                     <button @click="goHome" style="background:#8a7a6a; color:white; border:none; padding:6px 14px; border-radius:8px; cursor:pointer; font-size:14px;">🏠 返回</button>
-                    <button v-if="storyStatus === '草稿'" @click="publishStory" style="background:#28a745; color:white; border:none; padding:6px 16px; border-radius:8px; cursor:pointer; font-size:14px; margin-left:8px;">📤 发布</button>
+                    <button @click="publishStory" style="background:#28a745; color:white; border:none; padding:6px 16px; border-radius:8px; cursor:pointer; font-size:14px; margin-left:8px;">
+                        {{ storyStatus === '草稿' ? '📤 发布' : '🔄 重新发布' }}
+                    </button>
                 </div>
             </div>
 
